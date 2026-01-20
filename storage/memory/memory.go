@@ -6,7 +6,7 @@ import (
 
 type MemoryStorage struct {
 	data map[string][]Version
-	mu sync.RWMutex
+	mu   sync.RWMutex
 }
 
 func NewMemoryStorage() *MemoryStorage {
@@ -15,11 +15,11 @@ func NewMemoryStorage() *MemoryStorage {
 	}
 }
 
-func (db * MemoryStorage) Get(key string,ts uint64) ([]byte,bool) {
+func (db *MemoryStorage) Get(key string, ts uint64) ([]byte, bool) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	versions,ok := db.data[key]
+	versions, ok := db.data[key]
 	if !ok {
 		return nil, false
 	}
@@ -32,30 +32,30 @@ func (db * MemoryStorage) Get(key string,ts uint64) ([]byte,bool) {
 			} else {
 				return version.Value, true
 			}
-		} 
+		}
 	}
 	return nil, false
 }
 
-func (db * MemoryStorage) Set(key string,value []byte, commitTs uint64) {
+func (db *MemoryStorage) Set(key string, value []byte, commitTs uint64) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	v := Version{
 		CommitTs: commitTs,
-		Value: value,
-		Deleted: false,
+		Value:    value,
+		Deleted:  false,
 	}
 	db.data[key] = append(db.data[key], v)
 }
 
-func (db * MemoryStorage) Delete(key string, commitTs uint64) {
+func (db *MemoryStorage) Delete(key string, commitTs uint64) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	
+
 	v := Version{
 		CommitTs: commitTs,
-		Deleted: true,
+		Deleted:  true,
 	}
 	db.data[key] = append(db.data[key], v)
 }
