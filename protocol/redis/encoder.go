@@ -7,7 +7,7 @@ import (
 	"github.com/Aetherance/kv/common"
 )
 
-func encode(resp common.Response) []byte {
+func encode(resp *common.Response) []byte {
 	if resp.Err != nil {
 		return []byte("-ERR " + resp.Err.Error() + "\r\n")
 	}

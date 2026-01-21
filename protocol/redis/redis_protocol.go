@@ -3,7 +3,6 @@ package redis_protocol
 import (
 	"bufio"
 	"errors"
-	"net"
 	"strings"
 
 	"github.com/Aetherance/kv/common"
@@ -15,9 +14,7 @@ func New() *RedisProtocol {
 	return &RedisProtocol{}
 }
 
-func (r *RedisProtocol) ParseRequest(conn net.Conn) (*common.Request, error) {
-	reader := bufio.NewReader(conn)
-
+func (r *RedisProtocol) ParseRequest(reader *bufio.Reader) (*common.Request, error) {
 	args, err := parseArray(reader)
 	if err != nil {
 		return nil, err
@@ -57,6 +54,6 @@ func (r *RedisProtocol) ParseRequest(conn net.Conn) (*common.Request, error) {
 	}
 }
 
-func (r *RedisProtocol) EncodeResponse(resp common.Response) []byte {
+func (r *RedisProtocol) EncodeResponse(resp *common.Response) []byte {
 	return encode(resp)
 }
