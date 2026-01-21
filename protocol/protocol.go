@@ -1,21 +1,20 @@
 package protocol
 
-import "net"
+import (
+	"context"
+	"net"
 
-type Command struct {
-	Name string
-	Args []string
-}
-
-type Response struct {
-	Data interface{}
-	Err error
-}
+	"github.com/Aetherance/kv/common"
+)
 
 type Protocol interface {
 	// This method supports the parse of request
-	ParseRequest(conn net.Conn) (Command,error)
+	ParseRequest(conn net.Conn) (*common.Request, error)
 
 	// This method encode response to bytes
-	EncodeResponse(resp Response) []byte
+	EncodeResponse(resp common.Response) []byte
+}
+
+type Exporter interface {
+	Export(ctx context.Context)
 }
