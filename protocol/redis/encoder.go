@@ -4,10 +4,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Aetherance/kv/protocol"
+	"github.com/Aetherance/kv/common"
 )
 
-func encode(resp protocol.Response) []byte {
+func encode(resp common.Response) []byte {
 	if resp.Err != nil {
 		return []byte("-ERR " + resp.Err.Error() + "\r\n")
 	}
