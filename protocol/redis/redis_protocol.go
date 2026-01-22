@@ -49,8 +49,18 @@ func (r *RedisProtocol) ParseRequest(reader *bufio.Reader) (*common.Request, err
 			Op:  common.OpDel,
 			Key: []byte(args[1]),
 		}, nil
+	case "PING":
+		return &common.Request{
+			Op: common.OpPing,
+		}, nil
+	case "COMMAND":
+		return &common.Request{
+			Op: common.OpCommand,
+		}, nil
 	default:
-		return nil, errors.New("redis: unsupported command")
+		return &common.Request{
+			Op: common.OpUnknown,
+		}, nil
 	}
 }
 

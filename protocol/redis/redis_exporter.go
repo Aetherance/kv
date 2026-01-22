@@ -63,11 +63,12 @@ func (re *RedisExporter) handler(conn net.Conn,
 			if err == io.EOF {
 				return
 			} else {
+				log.Println(err)
 				continue
 			}
 		}
 
-		resp := coord.Coordinator(ctx, req)
+		resp := coord.Coordinate(ctx, req)
 		data := re.protocol.EncodeResponse(resp)
 
 		_, _ = conn.Write(data)
@@ -78,5 +79,5 @@ func (re *RedisExporter) Stop(ctx context.Context) error {
 	if re.l != nil {
 		return re.l.Close()
 	}
-	return errors.New("Redis server stop but no listener created")
+	return nil
 }

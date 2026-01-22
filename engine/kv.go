@@ -10,6 +10,13 @@ type KV struct {
 	tso     *Tso
 }
 
+func New(s storage.Storage) *KV {
+	return &KV{
+		storage: s,
+		tso:     NewTSO(),
+	}
+}
+
 func (kv *KV) Get(key []byte) ([]byte, error) {
 	if len(key) == 0 {
 		return nil, common.ErrEngineEmptyKey

@@ -22,6 +22,9 @@ func encode(resp *common.Response) []byte {
 	case int:
 		return []byte(":" + strconv.Itoa(v) + "\r\n")
 
+	case []byte:
+		return []byte("$" + strconv.Itoa(len(v)) + "\r\n" + string(v) + "\r\n")
+
 	case []string:
 		var b strings.Builder
 		b.WriteString("*" + strconv.Itoa(len(v)) + "\r\n")

@@ -12,6 +12,8 @@ const (
 	OpGet
 	OpSet
 	OpDel
+	OpPing
+	OpCommand
 )
 
 type Request struct {

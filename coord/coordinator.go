@@ -7,5 +7,5 @@ import (
 )
 
 type Coordinator interface {
-	Coordinator(ctx context.Context, req *common.Request) *common.Response
+	Coordinate(ctx context.Context, req *common.Request) *common.Response
 }
