@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package kvrpcpb;
+
+option go_package = "github.com/Aetherance/kv/proto/pkg/kvrpcpb;kvrpcpb";
+
+// Context will carry request metadata once raft/region routing is added.
+message Context {}
