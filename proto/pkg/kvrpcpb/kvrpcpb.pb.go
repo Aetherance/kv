@@ -21,7 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Context will carry request metadata once raft/region routing is added.
 type Context struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -58,12 +57,561 @@ func (*Context) Descriptor() ([]byte, []int) {
 	return file_kvrpcpb_proto_rawDescGZIP(), []int{0}
 }
 
+type KvGetRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *Context               `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Cf            string                 `protobuf:"bytes,2,opt,name=cf,proto3" json:"cf,omitempty"`
+	Key           []byte                 `protobuf:"bytes,3,opt,name=key,proto3" json:"key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KvGetRequest) Reset() {
+	*x = KvGetRequest{}
+	mi := &file_kvrpcpb_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KvGetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KvGetRequest) ProtoMessage() {}
+
+func (x *KvGetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_kvrpcpb_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KvGetRequest.ProtoReflect.Descriptor instead.
+func (*KvGetRequest) Descriptor() ([]byte, []int) {
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *KvGetRequest) GetContext() *Context {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *KvGetRequest) GetCf() string {
+	if x != nil {
+		return x.Cf
+	}
+	return ""
+}
+
+func (x *KvGetRequest) GetKey() []byte {
+	if x != nil {
+		return x.Key
+	}
+	return nil
+}
+
+type KvGetResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Error         string                 `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+	Value         []byte                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	NotFound      bool                   `protobuf:"varint,3,opt,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KvGetResponse) Reset() {
+	*x = KvGetResponse{}
+	mi := &file_kvrpcpb_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KvGetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KvGetResponse) ProtoMessage() {}
+
+func (x *KvGetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_kvrpcpb_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KvGetResponse.ProtoReflect.Descriptor instead.
+func (*KvGetResponse) Descriptor() ([]byte, []int) {
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *KvGetResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *KvGetResponse) GetValue() []byte {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+func (x *KvGetResponse) GetNotFound() bool {
+	if x != nil {
+		return x.NotFound
+	}
+	return false
+}
+
+type KvPutRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *Context               `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Cf            string                 `protobuf:"bytes,2,opt,name=cf,proto3" json:"cf,omitempty"`
+	Key           []byte                 `protobuf:"bytes,3,opt,name=key,proto3" json:"key,omitempty"`
+	Value         []byte                 `protobuf:"bytes,4,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KvPutRequest) Reset() {
+	*x = KvPutRequest{}
+	mi := &file_kvrpcpb_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KvPutRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KvPutRequest) ProtoMessage() {}
+
+func (x *KvPutRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_kvrpcpb_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KvPutRequest.ProtoReflect.Descriptor instead.
+func (*KvPutRequest) Descriptor() ([]byte, []int) {
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *KvPutRequest) GetContext() *Context {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *KvPutRequest) GetCf() string {
+	if x != nil {
+		return x.Cf
+	}
+	return ""
+}
+
+func (x *KvPutRequest) GetKey() []byte {
+	if x != nil {
+		return x.Key
+	}
+	return nil
+}
+
+func (x *KvPutRequest) GetValue() []byte {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+type KvPutResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Error         string                 `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KvPutResponse) Reset() {
+	*x = KvPutResponse{}
+	mi := &file_kvrpcpb_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KvPutResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KvPutResponse) ProtoMessage() {}
+
+func (x *KvPutResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_kvrpcpb_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KvPutResponse.ProtoReflect.Descriptor instead.
+func (*KvPutResponse) Descriptor() ([]byte, []int) {
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *KvPutResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type KvDeleteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *Context               `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Cf            string                 `protobuf:"bytes,2,opt,name=cf,proto3" json:"cf,omitempty"`
+	Key           []byte                 `protobuf:"bytes,3,opt,name=key,proto3" json:"key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KvDeleteRequest) Reset() {
+	*x = KvDeleteRequest{}
+	mi := &file_kvrpcpb_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KvDeleteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KvDeleteRequest) ProtoMessage() {}
+
+func (x *KvDeleteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_kvrpcpb_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KvDeleteRequest.ProtoReflect.Descriptor instead.
+func (*KvDeleteRequest) Descriptor() ([]byte, []int) {
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *KvDeleteRequest) GetContext() *Context {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *KvDeleteRequest) GetCf() string {
+	if x != nil {
+		return x.Cf
+	}
+	return ""
+}
+
+func (x *KvDeleteRequest) GetKey() []byte {
+	if x != nil {
+		return x.Key
+	}
+	return nil
+}
+
+type KvDeleteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Error         string                 `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KvDeleteResponse) Reset() {
+	*x = KvDeleteResponse{}
+	mi := &file_kvrpcpb_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KvDeleteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KvDeleteResponse) ProtoMessage() {}
+
+func (x *KvDeleteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_kvrpcpb_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KvDeleteResponse.ProtoReflect.Descriptor instead.
+func (*KvDeleteResponse) Descriptor() ([]byte, []int) {
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *KvDeleteResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type KvScanRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *Context               `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	Cf            string                 `protobuf:"bytes,2,opt,name=cf,proto3" json:"cf,omitempty"`
+	StartKey      []byte                 `protobuf:"bytes,3,opt,name=start_key,json=startKey,proto3" json:"start_key,omitempty"`
+	Limit         uint32                 `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KvScanRequest) Reset() {
+	*x = KvScanRequest{}
+	mi := &file_kvrpcpb_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KvScanRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KvScanRequest) ProtoMessage() {}
+
+func (x *KvScanRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_kvrpcpb_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KvScanRequest.ProtoReflect.Descriptor instead.
+func (*KvScanRequest) Descriptor() ([]byte, []int) {
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *KvScanRequest) GetContext() *Context {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *KvScanRequest) GetCf() string {
+	if x != nil {
+		return x.Cf
+	}
+	return ""
+}
+
+func (x *KvScanRequest) GetStartKey() []byte {
+	if x != nil {
+		return x.StartKey
+	}
+	return nil
+}
+
+func (x *KvScanRequest) GetLimit() uint32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type KvScanResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Error         string                 `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+	Kvs           []*KvPair              `protobuf:"bytes,2,rep,name=kvs,proto3" json:"kvs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KvScanResponse) Reset() {
+	*x = KvScanResponse{}
+	mi := &file_kvrpcpb_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KvScanResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KvScanResponse) ProtoMessage() {}
+
+func (x *KvScanResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_kvrpcpb_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KvScanResponse.ProtoReflect.Descriptor instead.
+func (*KvScanResponse) Descriptor() ([]byte, []int) {
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *KvScanResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *KvScanResponse) GetKvs() []*KvPair {
+	if x != nil {
+		return x.Kvs
+	}
+	return nil
+}
+
+type KvPair struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Error         string                 `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+	Key           []byte                 `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
+	Value         []byte                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KvPair) Reset() {
+	*x = KvPair{}
+	mi := &file_kvrpcpb_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KvPair) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KvPair) ProtoMessage() {}
+
+func (x *KvPair) ProtoReflect() protoreflect.Message {
+	mi := &file_kvrpcpb_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KvPair.ProtoReflect.Descriptor instead.
+func (*KvPair) Descriptor() ([]byte, []int) {
+	return file_kvrpcpb_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *KvPair) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *KvPair) GetKey() []byte {
+	if x != nil {
+		return x.Key
+	}
+	return nil
+}
+
+func (x *KvPair) GetValue() []byte {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
 var File_kvrpcpb_proto protoreflect.FileDescriptor
 
 const file_kvrpcpb_proto_rawDesc = "" +
 	"\n" +
 	"\rkvrpcpb.proto\x12\akvrpcpb\"\t\n" +
-	"\aContextB4Z2github.com/Aetherance/kv/proto/pkg/kvrpcpb;kvrpcpbb\x06proto3"
+	"\aContext\"\\\n" +
+	"\fKvGetRequest\x12*\n" +
+	"\acontext\x18\x01 \x01(\v2\x10.kvrpcpb.ContextR\acontext\x12\x0e\n" +
+	"\x02cf\x18\x02 \x01(\tR\x02cf\x12\x10\n" +
+	"\x03key\x18\x03 \x01(\fR\x03key\"X\n" +
+	"\rKvGetResponse\x12\x14\n" +
+	"\x05error\x18\x01 \x01(\tR\x05error\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\x12\x1b\n" +
+	"\tnot_found\x18\x03 \x01(\bR\bnotFound\"r\n" +
+	"\fKvPutRequest\x12*\n" +
+	"\acontext\x18\x01 \x01(\v2\x10.kvrpcpb.ContextR\acontext\x12\x0e\n" +
+	"\x02cf\x18\x02 \x01(\tR\x02cf\x12\x10\n" +
+	"\x03key\x18\x03 \x01(\fR\x03key\x12\x14\n" +
+	"\x05value\x18\x04 \x01(\fR\x05value\"%\n" +
+	"\rKvPutResponse\x12\x14\n" +
+	"\x05error\x18\x01 \x01(\tR\x05error\"_\n" +
+	"\x0fKvDeleteRequest\x12*\n" +
+	"\acontext\x18\x01 \x01(\v2\x10.kvrpcpb.ContextR\acontext\x12\x0e\n" +
+	"\x02cf\x18\x02 \x01(\tR\x02cf\x12\x10\n" +
+	"\x03key\x18\x03 \x01(\fR\x03key\"(\n" +
+	"\x10KvDeleteResponse\x12\x14\n" +
+	"\x05error\x18\x01 \x01(\tR\x05error\"~\n" +
+	"\rKvScanRequest\x12*\n" +
+	"\acontext\x18\x01 \x01(\v2\x10.kvrpcpb.ContextR\acontext\x12\x0e\n" +
+	"\x02cf\x18\x02 \x01(\tR\x02cf\x12\x1b\n" +
+	"\tstart_key\x18\x03 \x01(\fR\bstartKey\x12\x14\n" +
+	"\x05limit\x18\x04 \x01(\rR\x05limit\"I\n" +
+	"\x0eKvScanResponse\x12\x14\n" +
+	"\x05error\x18\x01 \x01(\tR\x05error\x12!\n" +
+	"\x03kvs\x18\x02 \x03(\v2\x0f.kvrpcpb.KvPairR\x03kvs\"F\n" +
+	"\x06KvPair\x12\x14\n" +
+	"\x05error\x18\x01 \x01(\tR\x05error\x12\x10\n" +
+	"\x03key\x18\x02 \x01(\fR\x03key\x12\x14\n" +
+	"\x05value\x18\x03 \x01(\fR\x05valueB4Z2github.com/Aetherance/kv/proto/pkg/kvrpcpb;kvrpcpbb\x06proto3"
 
 var (
 	file_kvrpcpb_proto_rawDescOnce sync.Once
@@ -77,16 +625,30 @@ func file_kvrpcpb_proto_rawDescGZIP() []byte {
 	return file_kvrpcpb_proto_rawDescData
 }
 
-var file_kvrpcpb_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_kvrpcpb_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_kvrpcpb_proto_goTypes = []any{
-	(*Context)(nil), // 0: kvrpcpb.Context
+	(*Context)(nil),          // 0: kvrpcpb.Context
+	(*KvGetRequest)(nil),     // 1: kvrpcpb.KvGetRequest
+	(*KvGetResponse)(nil),    // 2: kvrpcpb.KvGetResponse
+	(*KvPutRequest)(nil),     // 3: kvrpcpb.KvPutRequest
+	(*KvPutResponse)(nil),    // 4: kvrpcpb.KvPutResponse
+	(*KvDeleteRequest)(nil),  // 5: kvrpcpb.KvDeleteRequest
+	(*KvDeleteResponse)(nil), // 6: kvrpcpb.KvDeleteResponse
+	(*KvScanRequest)(nil),    // 7: kvrpcpb.KvScanRequest
+	(*KvScanResponse)(nil),   // 8: kvrpcpb.KvScanResponse
+	(*KvPair)(nil),           // 9: kvrpcpb.KvPair
 }
 var file_kvrpcpb_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0, // 0: kvrpcpb.KvGetRequest.context:type_name -> kvrpcpb.Context
+	0, // 1: kvrpcpb.KvPutRequest.context:type_name -> kvrpcpb.Context
+	0, // 2: kvrpcpb.KvDeleteRequest.context:type_name -> kvrpcpb.Context
+	0, // 3: kvrpcpb.KvScanRequest.context:type_name -> kvrpcpb.Context
+	9, // 4: kvrpcpb.KvScanResponse.kvs:type_name -> kvrpcpb.KvPair
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_kvrpcpb_proto_init() }
@@ -100,7 +662,7 @@ func file_kvrpcpb_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kvrpcpb_proto_rawDesc), len(file_kvrpcpb_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
