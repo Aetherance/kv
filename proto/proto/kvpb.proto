@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package kvpb;
+
+import "kvrpcpb.proto";
+
+option go_package = "github.com/Aetherance/kv/proto/pkg/kvpb;kvpb";
+
+service Kv {
+    rpc KvGet(kvrpcpb.KvGetRequest) returns (kvrpcpb.KvGetResponse) {}
+    rpc KvPut(kvrpcpb.KvPutRequest) returns (kvrpcpb.KvPutResponse) {}
+    rpc KvDelete(kvrpcpb.KvDeleteRequest) returns (kvrpcpb.KvDeleteResponse) {}
+    rpc KvScan(kvrpcpb.KvScanRequest) returns (kvrpcpb.KvScanResponse) {}
+}
