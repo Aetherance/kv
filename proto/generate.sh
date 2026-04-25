@@ -16,4 +16,6 @@ protoc \
 	-I "${PROTO_DIR}" \
 	--go_out="${ROOT_DIR}" \
 	--go_opt=module=github.com/Aetherance/kv \
+	--go-grpc_out="${ROOT_DIR}" \
+	--go-grpc_opt=module=github.com/Aetherance/kv \
 	"${proto_files[@]}"
