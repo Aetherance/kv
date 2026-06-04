@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/dgraph-io/badger/v4 v4.8.0
+	github.com/golang/protobuf v1.5.4
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
 )
