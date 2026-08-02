@@ -14,7 +14,6 @@ import (
 	"github.com/Aetherance/kv/engine/storage"
 	engine_util "github.com/Aetherance/kv/engine/util"
 	"github.com/Aetherance/kv/proto/pkg/errorpb"
-	"github.com/Aetherance/kv/proto/pkg/kvrpcpb"
 	"github.com/Aetherance/kv/proto/pkg/metapb"
 	"github.com/Aetherance/kv/proto/pkg/raft_cmdpb"
 	rspb "github.com/Aetherance/kv/proto/pkg/raft_serverpb"
@@ -85,7 +84,7 @@ func (rs *RaftStorage) header() *raft_cmdpb.RaftRequestHeader {
 	}
 }
 
-func (rs *RaftStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) error {
+func (rs *RaftStorage) Write(batch []storage.Modify) error {
 	var reqs []*raft_cmdpb.Request
 	for _, m := range batch {
 		switch data := m.Data.(type) {
@@ -110,7 +109,7 @@ func (rs *RaftStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) error
 	return rs.checkResponse(cb.WaitResp(), len(reqs))
 }
 
-func (rs *RaftStorage) Reader(ctx *kvrpcpb.Context) (storage.StorageReader, error) {
+func (rs *RaftStorage) Reader() (storage.StorageReader, error) {
 	request := &raft_cmdpb.RaftCmdRequest{
 		Header: rs.header(),
 		Requests: []*raft_cmdpb.Request{{

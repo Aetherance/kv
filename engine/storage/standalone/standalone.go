@@ -7,7 +7,6 @@ import (
 	"github.com/Aetherance/kv/engine/config"
 	"github.com/Aetherance/kv/engine/storage"
 	util "github.com/Aetherance/kv/engine/util"
-	"github.com/Aetherance/kv/proto/pkg/kvrpcpb"
 	badger "github.com/dgraph-io/badger/v4"
 )
 
@@ -46,16 +45,14 @@ func (s *StandAloneStorage) Stop() error {
 	return db.Close()
 }
 
-func (s *StandAloneStorage) Reader(ctx *kvrpcpb.Context) (storage.StorageReader, error) {
-	_ = ctx
+func (s *StandAloneStorage) Reader() (storage.StorageReader, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("db is nil")
 	}
 	return newStandAloneReader(s.db.NewTransaction(false)), nil
 }
 
-func (s *StandAloneStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) error {
-	_ = ctx
+func (s *StandAloneStorage) Write(batch []storage.Modify) error {
 	if s.db == nil {
 		return fmt.Errorf("db is nil")
 	}

@@ -21,7 +21,7 @@ func NewServer(s storage.Storage) *Server {
 func (s *Server) KvGet(_ context.Context, req *kvrpcpb.KvGetRequest) (*kvrpcpb.KvGetResponse, error) {
 	resp := &kvrpcpb.KvGetResponse{}
 
-	reader, err := s.storage.Reader(req.Context)
+	reader, err := s.storage.Reader()
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (s *Server) KvPut(_ context.Context, req *kvrpcpb.KvPutRequest) (*kvrpcpb.K
 			Cf:  req.Cf,
 		},
 	}
-	if err := s.storage.Write(req.Context, []storage.Modify{modify}); err != nil {
+	if err := s.storage.Write([]storage.Modify{modify}); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -65,7 +65,7 @@ func (s *Server) KvDelete(_ context.Context, req *kvrpcpb.KvDeleteRequest) (*kvr
 			Cf:  req.Cf,
 		},
 	}
-	if err := s.storage.Write(req.Context, []storage.Modify{modify}); err != nil {
+	if err := s.storage.Write([]storage.Modify{modify}); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -74,7 +74,7 @@ func (s *Server) KvDelete(_ context.Context, req *kvrpcpb.KvDeleteRequest) (*kvr
 func (s *Server) KvScan(_ context.Context, req *kvrpcpb.KvScanRequest) (*kvrpcpb.KvScanResponse, error) {
 	resp := &kvrpcpb.KvScanResponse{}
 
-	reader, err := s.storage.Reader(req.Context)
+	reader, err := s.storage.Reader()
 	if err != nil {
 		return nil, err
 	}

@@ -29,7 +29,7 @@ func TestStandAloneStorageRequiresStart(t *testing.T) {
 		DBPath: t.TempDir(),
 	})
 
-	reader, err := s.Reader(nil)
+	reader, err := s.Reader()
 	if err == nil {
 		t.Fatalf("expected reader error before start")
 	}
@@ -37,7 +37,7 @@ func TestStandAloneStorageRequiresStart(t *testing.T) {
 		t.Fatalf("expected nil reader before start")
 	}
 
-	err = s.Write(nil, []storage.Modify{
+	err = s.Write([]storage.Modify{
 		{
 			Data: storage.Put{
 				Cf:  "default",
@@ -58,7 +58,7 @@ func TestStandAloneStorageRequiresStart(t *testing.T) {
 func TestStandAloneStorageReadWriteAndDelete(t *testing.T) {
 	s := newTestStandAloneStorage(t)
 
-	err := s.Write(nil, []storage.Modify{
+	err := s.Write([]storage.Modify{
 		{
 			Data: storage.Put{
 				Cf:  "default",
@@ -85,7 +85,7 @@ func TestStandAloneStorageReadWriteAndDelete(t *testing.T) {
 		t.Fatalf("write puts: %v", err)
 	}
 
-	reader, err := s.Reader(nil)
+	reader, err := s.Reader()
 	if err != nil {
 		t.Fatalf("create reader: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestStandAloneStorageReadWriteAndDelete(t *testing.T) {
 	iter.Close()
 	reader.Close()
 
-	if err := s.Write(nil, []storage.Modify{
+	if err := s.Write([]storage.Modify{
 		{
 			Data: storage.Delete{
 				Cf:  "default",
@@ -173,7 +173,7 @@ func TestStandAloneStorageReadWriteAndDelete(t *testing.T) {
 
 	reader.Close()
 
-	reader, err = s.Reader(nil)
+	reader, err = s.Reader()
 	if err != nil {
 		t.Fatalf("create second reader: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestStandAloneStorageReadWriteAndDelete(t *testing.T) {
 func TestStandAloneStorageWriteRejectsInvalidBatch(t *testing.T) {
 	s := newTestStandAloneStorage(t)
 
-	err := s.Write(nil, []storage.Modify{
+	err := s.Write([]storage.Modify{
 		{Data: "bad"},
 	})
 	if err == nil {
