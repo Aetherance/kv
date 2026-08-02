@@ -157,19 +157,7 @@ func (d *peerMsgHandler) preProposeRaftCommand(req *raft_cmdpb.RaftCmdRequest) e
 	if err := util.CheckTerm(req, d.Term()); err != nil {
 		return err
 	}
-	err := util.CheckRegionEpoch(req, d.Region(), true)
-	if errEpochNotMatching, ok := err.(*util.ErrEpochNotMatch); ok {
-		// Attach the region which might be split from the current region. But it doesn't
-		// matter if the region is not split from the current region. If the region meta
-		// received by the TiKV driver is newer than the meta cached in the driver, the meta is
-		// updated.
-		siblingRegion := d.findSiblingRegion()
-		if siblingRegion != nil {
-			errEpochNotMatching.Regions = append(errEpochNotMatching.Regions, siblingRegion)
-		}
-		return errEpochNotMatching
-	}
-	return err
+	return util.CheckRegionEpoch(req, d.Region(), true)
 }
 
 func (d *peerMsgHandler) proposeRaftCommand(msg *raft_cmdpb.RaftCmdRequest, cb *message.Callback) {
@@ -200,7 +188,6 @@ func (d *peerMsgHandler) proposeRaftCommand(msg *raft_cmdpb.RaftCmdRequest, cb *
 
 	d.proposals = append(d.proposals, &proposal{
 		index: idx,
-		term:  d.Term(),
 		cb:    cb,
 	})
 }
@@ -445,11 +432,6 @@ func (d *peerMsgHandler) destroyPeer() {
 		panic(d.Tag + " meta corruption detected")
 	}
 	delete(meta.regions, regionID)
-}
-
-func (d *peerMsgHandler) findSiblingRegion() (result *metapb.Region) {
-	// Single-region mode: there are no sibling regions to look up yet.
-	return nil
 }
 
 func (d *peerMsgHandler) onRaftGCLogTick() {

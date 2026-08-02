@@ -9,4 +9,3 @@ func Warnf(format string, args ...interface{})  {}
 func Errorf(format string, args ...interface{}) {}
 func Fatalf(format string, args ...interface{}) {}
 func Fatal(args ...interface{})                 {}
-func Error(args ...interface{})                 {}
