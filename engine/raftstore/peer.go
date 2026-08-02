@@ -51,9 +51,8 @@ func replicatePeer(storeID uint64, cfg *config.Config, sched chan<- worker.Task,
 }
 
 type proposal struct {
-	// index + term for unique identification
+	// index identifies the matching committed entry.
 	index uint64
-	term  uint64
 	cb    *message.Callback
 }
 
