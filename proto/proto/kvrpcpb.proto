@@ -4,55 +4,69 @@ package kvrpcpb;
 
 option go_package = "github.com/Aetherance/kv/proto/pkg/kvrpcpb;kvrpcpb";
 
-message Context {}
-
 message KvGetRequest {
-    Context context = 1;
+    reserved 1;
+    reserved "context";
+
     string cf = 2;
     bytes key = 3;
 }
 
 message KvGetResponse {
-    string error = 1;
+    reserved 1;
+    reserved "error";
+
     bytes value = 2;
     bool not_found = 3;
 }
 
 message KvPutRequest {
-    Context context = 1;
+    reserved 1;
+    reserved "context";
+
     string cf = 2;
     bytes key = 3;
     bytes value = 4;
 }
 
 message KvPutResponse {
-    string error = 1;
+    reserved 1;
+    reserved "error";
 }
 
 message KvDeleteRequest {
-    Context context = 1;
+    reserved 1;
+    reserved "context";
+
     string cf = 2;
     bytes key = 3;
 }
 
 message KvDeleteResponse {
-    string error = 1;
+    reserved 1;
+    reserved "error";
 }
 
 message KvScanRequest {
-    Context context = 1;
+    reserved 1;
+    reserved "context";
+
     string cf = 2;
     bytes start_key = 3;
     uint32 limit = 4;
 }
 
 message KvScanResponse {
-    string error = 1;
+    reserved 1;
+    reserved "error";
+
     repeated KvPair kvs = 2;
 }
 
 message KvPair {
-    string error = 1;
+    reserved 1;
+    reserved "error";
+
     bytes key = 2;
     bytes value = 3;
 }

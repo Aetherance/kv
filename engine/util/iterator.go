@@ -41,10 +41,6 @@ func (it *CFIterator) Valid() bool {
 	return it.iter.ValidForPrefix([]byte(it.prefix))
 }
 
-func (it *CFIterator) ValidForPrefix(prefix []byte) bool {
-	return it.iter.ValidForPrefix(append([]byte(it.prefix), prefix...))
-}
-
 func (it *CFIterator) Close() {
 	it.iter.Close()
 }
@@ -55,10 +51,6 @@ func (it *CFIterator) Next() {
 
 func (it *CFIterator) Seek(key []byte) {
 	it.iter.Seek(append([]byte(it.prefix), key...))
-}
-
-func (it *CFIterator) Rewind() {
-	it.iter.Rewind()
 }
 
 type CFItem struct {
