@@ -34,8 +34,7 @@ func NewNode(system *Raftstore, cfg *config.Config) *Node {
 	return &Node{
 		clusterID: ClusterID,
 		store: &metapb.Store{
-			Id:      cfg.StoreID,
-			Address: cfg.StoreAddr,
+			Id: cfg.StoreID,
 		},
 		cfg:    cfg,
 		system: system,

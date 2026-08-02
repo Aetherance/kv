@@ -281,18 +281,6 @@ func (p *peer) sendRaftMessage(msg *eraftpb.Message, trans Transport) error {
 	sendMsg.FromPeer = p.Meta
 	sendMsg.ToPeer = toPeer
 
-	// There could be two cases:
-	// 1. Target peer already exists but has not established communication with leader yet
-	// 2. Target peer is added newly due to member change or region split, but it's not
-	//    created yet
-	// For both cases the region start key and end key are attached in RequestVote and
-	// Heartbeat message for the store of that peer to check whether to create a new peer
-	// when receiving these messages, or just to wait for a pending region split to perform
-	// later.
-	if p.peerStorage.isInitialized() && util.IsInitialMsg(msg) {
-		sendMsg.StartKey = append([]byte{}, p.Region().StartKey...)
-		sendMsg.EndKey = append([]byte{}, p.Region().EndKey...)
-	}
 	sendMsg.Message = msg
 	return trans.Send(sendMsg)
 }

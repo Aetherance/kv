@@ -1,15 +1,12 @@
 package util
 
 import (
-	"bytes"
 	"fmt"
 
-	"github.com/Aetherance/kv/engine/raftstore/meta"
 	"github.com/Aetherance/kv/log"
 	"github.com/Aetherance/kv/proto/pkg/metapb"
 	"github.com/Aetherance/kv/proto/pkg/raft_cmdpb"
 	eraftpb "github.com/Aetherance/kv/proto/pkg/raftpb"
-	"github.com/golang/protobuf/proto"
 )
 
 const RaftInvalidIndex uint64 = 0
@@ -31,33 +28,6 @@ func IsInitialMsg(msg *eraftpb.Message) bool {
 		(msg.MsgType == eraftpb.MessageType_MsgHeartbeat && msg.Commit == RaftInvalidIndex)
 }
 
-// CheckKeyInRegion checks if key in region range [`start_key`, `end_key`).
-func CheckKeyInRegion(key []byte, region *metapb.Region) error {
-	if bytes.Compare(key, region.StartKey) >= 0 && (len(region.EndKey) == 0 || bytes.Compare(key, region.EndKey) < 0) {
-		return nil
-	} else {
-		return &ErrKeyNotInRegion{Key: key, Region: region}
-	}
-}
-
-// CheckKeyInRegionExclusive checks if key in region range (`start_key`, `end_key`).
-func CheckKeyInRegionExclusive(key []byte, region *metapb.Region) error {
-	if bytes.Compare(region.StartKey, key) < 0 && (len(region.EndKey) == 0 || bytes.Compare(key, region.EndKey) < 0) {
-		return nil
-	} else {
-		return &ErrKeyNotInRegion{Key: key, Region: region}
-	}
-}
-
-// CheckKeyInRegionInclusive checks if key in region range [`start_key`, `end_key`].
-func CheckKeyInRegionInclusive(key []byte, region *metapb.Region) error {
-	if bytes.Compare(key, region.StartKey) >= 0 && (len(region.EndKey) == 0 || bytes.Compare(key, region.EndKey) <= 0) {
-		return nil
-	} else {
-		return &ErrKeyNotInRegion{Key: key, Region: region}
-	}
-}
-
 // IsEpochStale checks whether epoch is staler than check_epoch.
 func IsEpochStale(epoch *metapb.RegionEpoch, checkEpoch *metapb.RegionEpoch) bool {
 	return epoch.Version < checkEpoch.Version || epoch.ConfVer < checkEpoch.ConfVer
@@ -68,30 +38,8 @@ func IsVoteMessage(msg *eraftpb.Message) bool {
 	return tp == eraftpb.MessageType_MsgRequestVote
 }
 
-// IsFirstVoteMessage checks `msg` is the first vote message or not. It's used for
-// when the message is received but there is no such region in `Store::region_peers` and the
-// region overlaps with others. In this case we should put `msg` into `pending_votes` instead of
-// create the peer.
-func IsFirstVoteMessage(msg *eraftpb.Message) bool {
-	return IsVoteMessage(msg) && msg.Term == meta.RaftInitLogTerm+1
-}
-
 func CheckRegionEpoch(req *raft_cmdpb.RaftCmdRequest, region *metapb.Region, includeRegion bool) error {
-	checkVer, checkConfVer := false, false
-	if req.AdminRequest == nil {
-		checkVer = true
-	} else {
-		switch req.AdminRequest.CmdType {
-		case raft_cmdpb.AdminCmdType_CompactLog, raft_cmdpb.AdminCmdType_InvalidAdmin:
-		case raft_cmdpb.AdminCmdType_ChangePeer:
-			checkConfVer = true
-		case raft_cmdpb.AdminCmdType_Split, raft_cmdpb.AdminCmdType_TransferLeader:
-			checkVer = true
-			checkConfVer = true
-		}
-	}
-
-	if !checkVer && !checkConfVer {
+	if req.AdminRequest != nil {
 		return nil
 	}
 
@@ -107,8 +55,7 @@ func CheckRegionEpoch(req *raft_cmdpb.RaftCmdRequest, region *metapb.Region, inc
 	currentEpoch := region.RegionEpoch
 
 	// We must check epochs strictly to avoid key not in region error.
-	if (checkConfVer && fromEpoch.ConfVer != currentEpoch.ConfVer) ||
-		(checkVer && fromEpoch.Version != currentEpoch.Version) {
+	if fromEpoch.Version != currentEpoch.Version {
 		log.Debugf("epoch not match, region id %v, from epoch %v, current epoch %v",
 			region.Id, fromEpoch, currentEpoch)
 
@@ -126,16 +73,6 @@ func CheckRegionEpoch(req *raft_cmdpb.RaftCmdRequest, region *metapb.Region, inc
 func FindPeer(region *metapb.Region, storeID uint64) *metapb.Peer {
 	for _, peer := range region.Peers {
 		if peer.StoreId == storeID {
-			return peer
-		}
-	}
-	return nil
-}
-
-func RemovePeer(region *metapb.Region, storeID uint64) *metapb.Peer {
-	for i, peer := range region.Peers {
-		if peer.StoreId == storeID {
-			region.Peers = append(region.Peers[:i], region.Peers[i+1:]...)
 			return peer
 		}
 	}
@@ -173,18 +110,6 @@ func CheckPeerID(req *raft_cmdpb.RaftCmdRequest, peerID uint64) error {
 		return nil
 	}
 	return fmt.Errorf("mismatch peer id %d != %d", peer.Id, peerID)
-}
-
-func CloneMsg(origin, cloned proto.Message) error {
-	data, err := proto.Marshal(origin)
-	if err != nil {
-		return err
-	}
-	return proto.Unmarshal(data, cloned)
-}
-
-func SafeCopy(b []byte) []byte {
-	return append([]byte{}, b...)
 }
 
 func PeerEqual(l, r *metapb.Peer) bool {
