@@ -71,12 +71,6 @@ func (d *peerMsgHandler) HandleRaftReady() {
 				req0 := req.Requests[0]
 				cmdType := req0.CmdType
 				switch cmdType {
-				case raft_cmdpb.CmdType_Get:
-					val, _ := engine_util.GetCF(d.peerStorage.Engines.Kv, req0.Get.Cf, req0.Get.Key)
-					resp = &raft_cmdpb.Response{
-						CmdType: cmdType,
-						Get:     &raft_cmdpb.GetResponse{Value: val},
-					}
 				case raft_cmdpb.CmdType_Put:
 					kvWB.SetCF(req0.Put.Cf, req0.Put.Key, req0.Put.Value)
 					resp = &raft_cmdpb.Response{CmdType: cmdType}
@@ -100,9 +94,6 @@ func (d *peerMsgHandler) HandleRaftReady() {
 					}
 					if resp.CmdType == raft_cmdpb.CmdType_Snap {
 						prop.cb.Txn = d.peerStorage.Engines.Kv.NewTransaction(false)
-						cmdResp.Responses[0].Snap = &raft_cmdpb.SnapResponse{
-							Region: d.peerStorage.Region(),
-						}
 					}
 					prop.cb.Done(cmdResp)
 				}

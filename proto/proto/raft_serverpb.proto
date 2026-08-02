@@ -8,6 +8,9 @@ option go_package = "github.com/Aetherance/kv/proto/pkg/raft_serverpb;raft_serve
 
 // The message sent between Raft peer, it wraps the raft meessage with some meta information.
 message RaftMessage {
+    reserved 7, 8;
+    reserved "start_key", "end_key";
+
     uint64 region_id = 1;
     metapb.Peer from_peer = 2;
     metapb.Peer to_peer = 3;
@@ -15,9 +18,6 @@ message RaftMessage {
     metapb.RegionEpoch region_epoch = 5;
     // true means to_peer is a tombstone peer and it should remove itself.
     bool is_tombstone = 6;
-    // Region key range [start_key, end_key). (Used in 3B)
-    bytes start_key = 7;
-    bytes end_key = 8;
 }
 
 // Used to store the persistent state for Raft, including the hard state for raft and the last index of the raft log.
@@ -70,25 +70,11 @@ message KeyValue {
 }
 
 message RaftSnapshotData {
+    reserved 2, 5;
+    reserved "file_size", "meta";
+
     metapb.Region region = 1;
-    uint64 file_size = 2;
     repeated KeyValue data = 3;
-    SnapshotMeta meta = 5;
-}
-
-message SnapshotCFFile {
-    string cf = 1;
-    uint64 size = 2;
-    uint32 checksum = 3;
-}
-
-message SnapshotMeta {
-    repeated SnapshotCFFile cf_files = 1;
-}
-
-message SnapshotChunk {
-    RaftMessage message = 1;
-    bytes data = 2;
 }
 
 message Done {}

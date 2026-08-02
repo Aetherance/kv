@@ -9,9 +9,8 @@ type Config struct {
 	// Static cluster topology. StoreID identifies this store; Peers maps every
 	// store id in the cluster to its gRPC address. There is no scheduler, so the
 	// topology is fixed and shared by all nodes.
-	StoreID   uint64
-	StoreAddr string
-	Peers     map[uint64]string
+	StoreID uint64
+	Peers   map[uint64]string
 
 	// Raft related fields used by the raftstore.
 	RaftElectionTimeoutTicks int
@@ -24,7 +23,7 @@ type Config struct {
 }
 
 // NewDefaultConfig returns a Config with sane raft defaults. Caller fills in
-// DBPath, StoreID, StoreAddr and Peers.
+// DBPath, StoreID and Peers.
 func NewDefaultConfig() *Config {
 	return &Config{
 		RaftBaseTickInterval:     100 * time.Millisecond,

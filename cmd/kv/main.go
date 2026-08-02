@@ -34,7 +34,6 @@ func main() {
 
 	cfg := config.NewDefaultConfig()
 	cfg.StoreID = *storeID
-	cfg.StoreAddr = addr
 	cfg.Peers = peers
 	cfg.DBPath = *dataDir
 

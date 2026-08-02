@@ -3,25 +3,11 @@ package metapb;
 
 option go_package = "github.com/Aetherance/kv/proto/pkg/metapb;metapb";
 
-message Cluster {
-    uint64 id = 1;
-    // max peer count for a region.
-    // scheduler will do the auto-balance if region peer count mismatches.
-    uint32 max_peer_count = 2;
-    // more attributes......
-}
-
-enum StoreState {
-    Up = 0;
-    Offline = 1;
-    Tombstone = 2;
-}
-
 message Store {
+    reserved 2, 3;
+    reserved "address", "state";
+
     uint64 id = 1;
-    // Address to handle client requests (kv, cop, etc.)
-    string address = 2;
-    StoreState state = 3;
 }
 
 message RegionEpoch {

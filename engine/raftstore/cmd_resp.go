@@ -2,7 +2,6 @@ package raftstore
 
 import (
 	"github.com/Aetherance/kv/engine/raftstore/util"
-	"github.com/Aetherance/kv/proto/pkg/errorpb"
 	"github.com/Aetherance/kv/proto/pkg/raft_cmdpb"
 )
 
@@ -40,23 +39,4 @@ func ErrRespWithTerm(err error, term uint64) *raft_cmdpb.RaftCmdResponse {
 
 func ErrRespStaleCommand(term uint64) *raft_cmdpb.RaftCmdResponse {
 	return ErrRespWithTerm(new(util.ErrStaleCommand), term)
-}
-
-func ErrRespRegionNotFound(regionID uint64) *raft_cmdpb.RaftCmdResponse {
-	return &raft_cmdpb.RaftCmdResponse{
-		Header: &raft_cmdpb.RaftResponseHeader{
-			Error: &errorpb.Error{
-				Message: "region is not found",
-				RegionNotFound: &errorpb.RegionNotFound{
-					RegionId: regionID,
-				},
-			},
-		},
-	}
-}
-
-func newCmdResp() *raft_cmdpb.RaftCmdResponse {
-	return &raft_cmdpb.RaftCmdResponse{
-		Header: &raft_cmdpb.RaftResponseHeader{},
-	}
 }
