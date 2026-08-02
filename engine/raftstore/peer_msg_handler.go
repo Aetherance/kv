@@ -6,7 +6,6 @@ import (
 	"github.com/Aetherance/kv/engine/raftstore/message"
 	"github.com/Aetherance/kv/engine/raftstore/meta"
 	"github.com/Aetherance/kv/engine/raftstore/runner"
-	"github.com/Aetherance/kv/engine/raftstore/snap"
 	"github.com/Aetherance/kv/engine/raftstore/util"
 	engine_util "github.com/Aetherance/kv/engine/util"
 	"github.com/Aetherance/kv/log"
@@ -260,20 +259,11 @@ func (d *peerMsgHandler) onRaftMsg(msg *rspb.RaftMessage) error {
 	if d.checkMessage(msg) {
 		return nil
 	}
-	key, err := d.checkSnapshot(msg)
+	skip, err := d.checkSnapshot(msg)
 	if err != nil {
 		return err
 	}
-	if key != nil {
-		// If the snapshot file is not used again, then it's OK to
-		// delete them here. If the snapshot file will be reused when
-		// receiving, then it will fail to pass the check again, so
-		// missing snapshot files should not be noticed.
-		s, err1 := d.ctx.snapMgr.GetSnapshotForApplying(*key)
-		if err1 != nil {
-			return err1
-		}
-		d.ctx.snapMgr.DeleteSnapshot(*key, s, false)
+	if skip {
 		return nil
 	}
 	d.insertPeerCache(msg.GetFromPeer())
@@ -388,19 +378,16 @@ func (d *peerMsgHandler) handleGCPeerMsg(msg *rspb.RaftMessage) {
 	}
 }
 
-// Returns `None` if the `msg` doesn't contain a snapshot or it contains a snapshot which
-// doesn't conflict with any other snapshots or regions. Otherwise a `snap.SnapKey` is returned.
-func (d *peerMsgHandler) checkSnapshot(msg *rspb.RaftMessage) (*snap.SnapKey, error) {
+// checkSnapshot reports whether an invalid or conflicting inline snapshot should be skipped.
+func (d *peerMsgHandler) checkSnapshot(msg *rspb.RaftMessage) (bool, error) {
 	if msg.Message.Snapshot == nil {
-		return nil, nil
+		return false, nil
 	}
-	regionID := msg.RegionId
 	snapshot := msg.Message.Snapshot
-	key := snap.SnapKeyFromRegionSnap(regionID, snapshot)
 	snapData := new(rspb.RaftSnapshotData)
 	err := snapData.Unmarshal(snapshot.Data)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 	snapRegion := snapData.Region
 	peerID := msg.ToPeer.Id
@@ -413,7 +400,7 @@ func (d *peerMsgHandler) checkSnapshot(msg *rspb.RaftMessage) (*snap.SnapKey, er
 	}
 	if !contains {
 		log.Infof("%s %s doesn't contains peer %d, skip", d.Tag, snapRegion, peerID)
-		return &key, nil
+		return true, nil
 	}
 	meta := d.ctx.storeMeta
 	meta.Lock()
@@ -421,7 +408,7 @@ func (d *peerMsgHandler) checkSnapshot(msg *rspb.RaftMessage) (*snap.SnapKey, er
 	if !util.RegionEqual(meta.regions[d.regionId], d.Region()) {
 		if !d.isInitialized() {
 			log.Infof("%s stale delegate detected, skip", d.Tag)
-			return &key, nil
+			return true, nil
 		} else {
 			panic(fmt.Sprintf("%s meta corrupted %s != %s", d.Tag, meta.regions[d.regionId], d.Region()))
 		}
@@ -433,15 +420,9 @@ func (d *peerMsgHandler) checkSnapshot(msg *rspb.RaftMessage) (*snap.SnapKey, er
 			continue
 		}
 		log.Infof("%s region overlapped %s %s", d.Tag, existRegion, snapRegion)
-		return &key, nil
+		return true, nil
 	}
-
-	// check if snapshot file exists.
-	_, err = d.ctx.snapMgr.GetSnapshotForApplying(key)
-	if err != nil {
-		return nil, err
-	}
-	return nil, nil
+	return false, nil
 }
 
 func (d *peerMsgHandler) destroyPeer() {
