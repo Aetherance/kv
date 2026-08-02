@@ -2,7 +2,6 @@ package raftstore
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/Aetherance/kv/engine/raftstore/message"
 	"github.com/Aetherance/kv/engine/raftstore/meta"
@@ -20,10 +19,8 @@ import (
 type PeerTick int
 
 const (
-	PeerTickRaft               PeerTick = 0
-	PeerTickRaftLogGC          PeerTick = 1
-	PeerTickSplitRegionCheck   PeerTick = 2
-	PeerTickSchedulerHeartbeat PeerTick = 3
+	PeerTickRaft      PeerTick = 0
+	PeerTickRaftLogGC PeerTick = 1
 )
 
 type peerMsgHandler struct {
@@ -144,15 +141,6 @@ func (d *peerMsgHandler) HandleMsg(msg message.Msg) {
 		d.proposeRaftCommand(raftCMD.Request, raftCMD.Callback)
 	case message.MsgTypeTick:
 		d.onTick()
-	case message.MsgTypeSplitRegion:
-		split := msg.Data.(*message.MsgSplitRegion)
-		log.Infof("%s on split with %v", d.Tag, split.SplitKey)
-		d.onPrepareSplitRegion(split.RegionEpoch, split.SplitKey, split.Callback)
-	case message.MsgTypeRegionApproximateSize:
-		d.onApproximateRegionSize(msg.Data.(uint64))
-	case message.MsgTypeGcSnap:
-		gcSnap := msg.Data.(*message.MsgGCSnap)
-		d.onGCSnap(gcSnap.Snaps)
 	case message.MsgTypeStart:
 		d.startTicker()
 	}
@@ -238,12 +226,6 @@ func (d *peerMsgHandler) onTick() {
 	if d.ticker.isOnTick(PeerTickRaftLogGC) {
 		d.onRaftGCLogTick()
 	}
-	if d.ticker.isOnTick(PeerTickSchedulerHeartbeat) {
-		d.onSchedulerHeartbeatTick()
-	}
-	if d.ticker.isOnTick(PeerTickSplitRegionCheck) {
-		d.onSplitRegionCheckTick()
-	}
 	d.ctx.tickDriverSender <- d.regionId
 }
 
@@ -252,8 +234,6 @@ func (d *peerMsgHandler) startTicker() {
 	d.ctx.tickDriverSender <- d.regionId
 	d.ticker.schedule(PeerTickRaft)
 	d.ticker.schedule(PeerTickRaftLogGC)
-	d.ticker.schedule(PeerTickSplitRegionCheck)
-	d.ticker.schedule(PeerTickSchedulerHeartbeat)
 }
 
 func (d *peerMsgHandler) onRaftBaseTick() {
@@ -309,9 +289,6 @@ func (d *peerMsgHandler) onRaftMsg(msg *rspb.RaftMessage) error {
 	err = d.RaftGroup.Step(msg.GetMessage())
 	if err != nil {
 		return err
-	}
-	if d.AnyNewPeerCatchUp(msg.FromPeer.Id) {
-		d.HeartbeatScheduler(d.ctx.schedulerTaskSender)
 	}
 	return nil
 }
@@ -535,120 +512,6 @@ func (d *peerMsgHandler) onRaftGCLogTick() {
 	regionID := d.regionId
 	request := newCompactLogRequest(regionID, d.Meta, compactIdx, term)
 	d.proposeRaftCommand(request, nil)
-}
-
-func (d *peerMsgHandler) onSplitRegionCheckTick() {
-	d.ticker.schedule(PeerTickSplitRegionCheck)
-	// To avoid frequent scan, we only add new scan tasks if all previous tasks
-	// have finished.
-	if len(d.ctx.splitCheckTaskSender) > 0 {
-		return
-	}
-
-	if !d.IsLeader() {
-		return
-	}
-	if d.ApproximateSize != nil && d.SizeDiffHint < d.ctx.cfg.RegionSplitSize/8 {
-		return
-	}
-	d.ctx.splitCheckTaskSender <- &runner.SplitCheckTask{
-		Region: d.Region(),
-	}
-	d.SizeDiffHint = 0
-}
-
-func (d *peerMsgHandler) onPrepareSplitRegion(regionEpoch *metapb.RegionEpoch, splitKey []byte, cb *message.Callback) {
-	if err := d.validateSplitRegion(regionEpoch, splitKey); err != nil {
-		cb.Done(ErrResp(err))
-		return
-	}
-	region := d.Region()
-	d.ctx.schedulerTaskSender <- &runner.SchedulerAskSplitTask{
-		Region:   region,
-		SplitKey: splitKey,
-		Peer:     d.Meta,
-		Callback: cb,
-	}
-}
-
-func (d *peerMsgHandler) validateSplitRegion(epoch *metapb.RegionEpoch, splitKey []byte) error {
-	if len(splitKey) == 0 {
-		err := fmt.Errorf("%s split key should not be empty", d.Tag)
-		log.Error(err)
-		return err
-	}
-
-	if !d.IsLeader() {
-		// region on this store is no longer leader, skipped.
-		log.Infof("%s not leader, skip", d.Tag)
-		return &util.ErrNotLeader{
-			RegionId: d.regionId,
-			Leader:   d.getPeerFromCache(d.LeaderId()),
-		}
-	}
-
-	region := d.Region()
-	latestEpoch := region.GetRegionEpoch()
-
-	// This is a little difference for `check_region_epoch` in region split case.
-	// Here we just need to check `version` because `conf_ver` will be update
-	// to the latest value of the peer, and then send to Scheduler.
-	if latestEpoch.Version != epoch.Version {
-		log.Infof("%s epoch changed, retry later, prev_epoch: %s, epoch %s",
-			d.Tag, latestEpoch, epoch)
-		return &util.ErrEpochNotMatch{
-			Message: fmt.Sprintf("%s epoch changed %s != %s, retry later", d.Tag, latestEpoch, epoch),
-			Regions: []*metapb.Region{region},
-		}
-	}
-	return nil
-}
-
-func (d *peerMsgHandler) onApproximateRegionSize(size uint64) {
-	d.ApproximateSize = &size
-}
-
-func (d *peerMsgHandler) onSchedulerHeartbeatTick() {
-	d.ticker.schedule(PeerTickSchedulerHeartbeat)
-
-	if !d.IsLeader() {
-		return
-	}
-	d.HeartbeatScheduler(d.ctx.schedulerTaskSender)
-}
-
-func (d *peerMsgHandler) onGCSnap(snaps []snap.SnapKeyWithSending) {
-	compactedIdx := d.peerStorage.truncatedIndex()
-	compactedTerm := d.peerStorage.truncatedTerm()
-	for _, snapKeyWithSending := range snaps {
-		key := snapKeyWithSending.SnapKey
-		if snapKeyWithSending.IsSending {
-			snap, err := d.ctx.snapMgr.GetSnapshotForSending(key)
-			if err != nil {
-				log.Errorf("%s failed to load snapshot for %s %v", d.Tag, key, err)
-				continue
-			}
-			if key.Term < compactedTerm || key.Index < compactedIdx {
-				log.Infof("%s snap file %s has been compacted, delete", d.Tag, key)
-				d.ctx.snapMgr.DeleteSnapshot(key, snap, false)
-			} else if fi, err1 := snap.Meta(); err1 == nil {
-				modTime := fi.ModTime()
-				if time.Since(modTime) > 4*time.Hour {
-					log.Infof("%s snap file %s has been expired, delete", d.Tag, key)
-					d.ctx.snapMgr.DeleteSnapshot(key, snap, false)
-				}
-			}
-		} else if key.Term <= compactedTerm &&
-			(key.Index < compactedIdx || key.Index == compactedIdx) {
-			log.Infof("%s snap file %s has been applied, delete", d.Tag, key)
-			a, err := d.ctx.snapMgr.GetSnapshotForApplying(key)
-			if err != nil {
-				log.Errorf("%s failed to load snapshot for %s %v", d.Tag, key, err)
-				continue
-			}
-			d.ctx.snapMgr.DeleteSnapshot(key, a, false)
-		}
-	}
 }
 
 func newAdminRequest(regionID uint64, peer *metapb.Peer) *raft_cmdpb.RaftCmdRequest {

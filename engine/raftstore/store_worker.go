@@ -3,7 +3,6 @@ package raftstore
 import (
 	"sync"
 
-	"github.com/Aetherance/kv/engine/config"
 	"github.com/Aetherance/kv/engine/raftstore/message"
 	"github.com/Aetherance/kv/engine/raftstore/util"
 	"github.com/Aetherance/kv/log"
@@ -11,24 +10,15 @@ import (
 	rspb "github.com/Aetherance/kv/proto/pkg/raft_serverpb"
 )
 
-type StoreTick int
-
-const (
-	StoreTickSchedulerStoreHeartbeat StoreTick = 1
-	StoreTickSnapGC                  StoreTick = 2
-)
-
 type storeState struct {
 	id       uint64
 	receiver <-chan message.Msg
-	ticker   *ticker
 }
 
-func newStoreState(cfg *config.Config) (chan<- message.Msg, *storeState) {
+func newStoreState() (chan<- message.Msg, *storeState) {
 	ch := make(chan message.Msg, 40960)
 	state := &storeState{
 		receiver: (<-chan message.Msg)(ch),
-		ticker:   newStoreTicker(cfg),
 	}
 	return (chan<- message.Msg)(ch), state
 }
@@ -66,9 +56,6 @@ func (d *storeWorker) handleMsg(msg message.Msg) {
 		if err := d.onRaftMessage(msg.Data.(*rspb.RaftMessage)); err != nil {
 			log.Errorf("handle raft message failed storeID %d, %v", d.id, err)
 		}
-	case message.MsgTypeStoreTick:
-		// Only SnapGC and scheduler heartbeat ticks reach here; both are no-ops
-		// for the static, inline-snapshot cluster.
 	case message.MsgTypeStoreStart:
 		d.start(msg.Data.(*metapb.Store))
 	}

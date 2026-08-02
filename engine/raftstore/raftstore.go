@@ -60,33 +60,22 @@ func rangesOverlap(a, b *metapb.Region) bool {
 
 // GlobalContext bundles the shared per-store dependencies.
 type GlobalContext struct {
-	cfg                  *config.Config
-	engine               *engine_util.Engines
-	store                *metapb.Store
-	storeMeta            *storeMeta
-	snapMgr              *snap.SnapManager
-	router               *router
-	trans                Transport
-	schedulerTaskSender  chan<- worker.Task
-	regionTaskSender     chan<- worker.Task
-	raftLogGCTaskSender  chan<- worker.Task
-	splitCheckTaskSender chan<- worker.Task
-	tickDriverSender     chan uint64
+	cfg                 *config.Config
+	engine              *engine_util.Engines
+	store               *metapb.Store
+	storeMeta           *storeMeta
+	snapMgr             *snap.SnapManager
+	router              *router
+	trans               Transport
+	regionTaskSender    chan<- worker.Task
+	raftLogGCTaskSender chan<- worker.Task
+	tickDriverSender    chan uint64
 }
 
-// noopHandler drains a worker channel without doing anything. It backs the
-// scheduler and split-check workers, which are out of scope for the static
-// cluster but whose channels are still referenced by peer_msg_handler.
-type noopHandler struct{}
-
-func (noopHandler) Handle(t worker.Task) {}
-
 type workers struct {
-	raftLogGCWorker  *worker.Worker
-	schedulerWorker  *worker.Worker
-	splitCheckWorker *worker.Worker
-	regionWorker     *worker.Worker
-	wg               *sync.WaitGroup
+	raftLogGCWorker *worker.Worker
+	regionWorker    *worker.Worker
+	wg              *sync.WaitGroup
 }
 
 type Raftstore struct {
@@ -161,25 +150,21 @@ func (bs *Raftstore) start(
 	snapMgr *snap.SnapManager) error {
 	wg := new(sync.WaitGroup)
 	bs.workers = &workers{
-		splitCheckWorker: worker.NewWorker("split-check", wg),
-		regionWorker:     worker.NewWorker("snapshot-worker", wg),
-		raftLogGCWorker:  worker.NewWorker("raft-gc-worker", wg),
-		schedulerWorker:  worker.NewWorker("scheduler-worker", wg),
-		wg:               wg,
+		regionWorker:    worker.NewWorker("snapshot-worker", wg),
+		raftLogGCWorker: worker.NewWorker("raft-gc-worker", wg),
+		wg:              wg,
 	}
 	bs.ctx = &GlobalContext{
-		cfg:                  cfg,
-		engine:               engines,
-		store:                store,
-		storeMeta:            newStoreMeta(),
-		snapMgr:              snapMgr,
-		router:               bs.router,
-		trans:                trans,
-		schedulerTaskSender:  bs.workers.schedulerWorker.Sender(),
-		regionTaskSender:     bs.workers.regionWorker.Sender(),
-		splitCheckTaskSender: bs.workers.splitCheckWorker.Sender(),
-		raftLogGCTaskSender:  bs.workers.raftLogGCWorker.Sender(),
-		tickDriverSender:     bs.tickDriver.newRegionCh,
+		cfg:                 cfg,
+		engine:              engines,
+		store:               store,
+		storeMeta:           newStoreMeta(),
+		snapMgr:             snapMgr,
+		router:              bs.router,
+		trans:               trans,
+		regionTaskSender:    bs.workers.regionWorker.Sender(),
+		raftLogGCTaskSender: bs.workers.raftLogGCWorker.Sender(),
+		tickDriverSender:    bs.tickDriver.newRegionCh,
 	}
 	regionPeers, err := bs.loadPeers()
 	if err != nil {
@@ -207,12 +192,8 @@ func (bs *Raftstore) startWorkers(peers []*peer) {
 		_ = router.send(regionID, message.Msg{RegionID: regionID, Type: message.MsgTypeStart})
 	}
 	engines := ctx.engine
-	// Snapshots are inline, so the region worker needs only the engines. The
-	// scheduler and split-check workers are no-ops in the static cluster.
 	workers.regionWorker.Start(runner.NewRegionTaskHandler(engines))
 	workers.raftLogGCWorker.Start(runner.NewRaftLogGCTaskHandler())
-	workers.schedulerWorker.Start(noopHandler{})
-	workers.splitCheckWorker.Start(noopHandler{})
 	go bs.tickDriver.run()
 }
 
@@ -225,20 +206,18 @@ func (bs *Raftstore) shutDown() {
 	}
 	workers := bs.workers
 	bs.workers = nil
-	workers.splitCheckWorker.Stop()
 	workers.regionWorker.Stop()
 	workers.raftLogGCWorker.Stop()
-	workers.schedulerWorker.Stop()
 	workers.wg.Wait()
 }
 
 func CreateRaftstore(cfg *config.Config) (*RaftstoreRouter, *Raftstore) {
-	storeSender, storeState := newStoreState(cfg)
+	storeSender, storeState := newStoreState()
 	router := newRouter(storeSender)
 	raftstore := &Raftstore{
 		router:     router,
 		storeState: storeState,
-		tickDriver: newTickDriver(cfg.RaftBaseTickInterval, router, storeState.ticker),
+		tickDriver: newTickDriver(cfg.RaftBaseTickInterval, router),
 		closeCh:    make(chan struct{}),
 		wg:         new(sync.WaitGroup),
 	}

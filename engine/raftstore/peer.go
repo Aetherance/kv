@@ -7,7 +7,6 @@ import (
 	"github.com/Aetherance/kv/engine/config"
 	"github.com/Aetherance/kv/engine/raftstore/message"
 	"github.com/Aetherance/kv/engine/raftstore/meta"
-	"github.com/Aetherance/kv/engine/raftstore/runner"
 	"github.com/Aetherance/kv/engine/raftstore/util"
 	engine_util "github.com/Aetherance/kv/engine/util"
 	"github.com/Aetherance/kv/engine/util/worker"
@@ -94,22 +93,9 @@ type peer struct {
 	// when sending raft messages to other peers, it's used to get the store id of target peer
 	// (Used in 3B conf change)
 	peerCache map[uint64]*metapb.Peer
-	// Record the instants of peers being added into the configuration.
-	// Remove them after they are not pending any more.
-	// (Used in 3B conf change)
-	PeersStartPendingTime map[uint64]time.Time
 	// Mark the peer as stopped, set when peer is destroyed
 	// (Used in 3B conf change)
 	stopped bool
-
-	// An inaccurate difference in region size since last reset.
-	// split checker is triggered when it exceeds the threshold, it makes split checker not scan the data very often
-	// (Used in 3B split)
-	SizeDiffHint uint64
-	// Approximate size of the region.
-	// It's updated everytime the split checker scan the data
-	// (Used in 3B split)
-	ApproximateSize *uint64
 }
 
 func NewPeer(storeId uint64, cfg *config.Config, engines *engine_util.Engines, region *metapb.Region, regionSched chan<- worker.Task,
@@ -139,14 +125,13 @@ func NewPeer(storeId uint64, cfg *config.Config, engines *engine_util.Engines, r
 		return nil, err
 	}
 	p := &peer{
-		Meta:                  meta,
-		regionId:              region.GetId(),
-		RaftGroup:             raftGroup,
-		peerStorage:           ps,
-		peerCache:             make(map[uint64]*metapb.Peer),
-		PeersStartPendingTime: make(map[uint64]time.Time),
-		Tag:                   tag,
-		ticker:                newTicker(region.GetId(), cfg),
+		Meta:        meta,
+		regionId:    region.GetId(),
+		RaftGroup:   raftGroup,
+		peerStorage: ps,
+		peerCache:   make(map[uint64]*metapb.Peer),
+		Tag:         tag,
+		ticker:      newTicker(region.GetId(), cfg),
 	}
 
 	// If this region has only one peer and I am the one, campaign directly.
@@ -274,87 +259,8 @@ func (p *peer) Send(trans Transport, msgs []*eraftpb.Message) {
 	}
 }
 
-// / Collects all pending peers and update `peers_start_pending_time`.
-func (p *peer) CollectPendingPeers() []*metapb.Peer {
-	pendingPeers := make([]*metapb.Peer, 0, len(p.Region().GetPeers()))
-	truncatedIdx := p.peerStorage.truncatedIndex()
-	for id, progress := range p.RaftGroup.GetProgress() {
-		if id == p.Meta.GetId() {
-			continue
-		}
-		if progress.Match < truncatedIdx {
-			if peer := p.getPeerFromCache(id); peer != nil {
-				pendingPeers = append(pendingPeers, peer)
-				if _, ok := p.PeersStartPendingTime[id]; !ok {
-					now := time.Now()
-					p.PeersStartPendingTime[id] = now
-					log.Debugf("%v peer %v start pending at %v", p.Tag, id, now)
-				}
-			}
-		}
-	}
-	return pendingPeers
-}
-
-func (p *peer) clearPeersStartPendingTime() {
-	for id := range p.PeersStartPendingTime {
-		delete(p.PeersStartPendingTime, id)
-	}
-}
-
-// / Returns `true` if any new peer catches up with the leader in replicating logs.
-// / And updates `PeersStartPendingTime` if needed.
-func (p *peer) AnyNewPeerCatchUp(peerId uint64) bool {
-	if len(p.PeersStartPendingTime) == 0 {
-		return false
-	}
-	if !p.IsLeader() {
-		p.clearPeersStartPendingTime()
-		return false
-	}
-	if startPendingTime, ok := p.PeersStartPendingTime[peerId]; ok {
-		truncatedIdx := p.peerStorage.truncatedIndex()
-		progress, ok := p.RaftGroup.Raft.Prs[peerId]
-		if ok {
-			if progress.Match >= truncatedIdx {
-				delete(p.PeersStartPendingTime, peerId)
-				elapsed := time.Since(startPendingTime)
-				log.Debugf("%v peer %v has caught up logs, elapsed: %v", p.Tag, peerId, elapsed)
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (p *peer) MaybeCampaign(parentIsLeader bool) bool {
-	// The peer campaigned when it was created, no need to do it again.
-	if len(p.Region().GetPeers()) <= 1 || !parentIsLeader {
-		return false
-	}
-
-	// If last peer is the leader of the region before split, it's intuitional for
-	// it to become the leader of new split region.
-	p.RaftGroup.Campaign()
-	return true
-}
-
 func (p *peer) Term() uint64 {
 	return p.RaftGroup.Raft.Term
-}
-
-func (p *peer) HeartbeatScheduler(ch chan<- worker.Task) {
-	clonedRegion := new(metapb.Region)
-	err := util.CloneMsg(p.Region(), clonedRegion)
-	if err != nil {
-		return
-	}
-	ch <- &runner.SchedulerRegionHeartbeatTask{
-		Region:          clonedRegion,
-		Peer:            p.Meta,
-		PendingPeers:    p.CollectPendingPeers(),
-		ApproximateSize: p.ApproximateSize,
-	}
 }
 
 func (p *peer) sendRaftMessage(msg *eraftpb.Message, trans Transport) error {
