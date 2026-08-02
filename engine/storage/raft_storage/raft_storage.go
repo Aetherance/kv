@@ -10,7 +10,6 @@ import (
 	"github.com/Aetherance/kv/engine/config"
 	"github.com/Aetherance/kv/engine/raftstore"
 	"github.com/Aetherance/kv/engine/raftstore/message"
-	"github.com/Aetherance/kv/engine/raftstore/snap"
 	"github.com/Aetherance/kv/engine/storage"
 	engine_util "github.com/Aetherance/kv/engine/util"
 	"github.com/Aetherance/kv/proto/pkg/errorpb"
@@ -27,11 +26,10 @@ type RaftStorage struct {
 	engines *engine_util.Engines
 	config  *config.Config
 
-	node        *raftstore.Node
-	snapManager *snap.SnapManager
-	raftRouter  *raftstore.RaftstoreRouter
-	raftSystem  *raftstore.Raftstore
-	trans       *ServerTransport
+	node       *raftstore.Node
+	raftRouter *raftstore.RaftstoreRouter
+	raftSystem *raftstore.Raftstore
+	trans      *ServerTransport
 }
 
 type RegionError struct {
@@ -148,10 +146,9 @@ func (rs *RaftStorage) Raft(stream rspb.RaftService_RaftServer) error {
 func (rs *RaftStorage) Start() error {
 	cfg := rs.config
 	rs.raftRouter, rs.raftSystem = raftstore.CreateRaftstore(cfg)
-	rs.snapManager = &snap.SnapManager{}
 	rs.trans = NewServerTransport(cfg)
 	rs.node = raftstore.NewNode(rs.raftSystem, cfg)
-	return rs.node.Start(rs.engines, rs.trans, rs.snapManager)
+	return rs.node.Start(rs.engines, rs.trans)
 }
 
 func (rs *RaftStorage) Stop() error {

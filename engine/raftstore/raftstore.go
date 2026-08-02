@@ -12,7 +12,6 @@ import (
 	"github.com/Aetherance/kv/engine/raftstore/message"
 	"github.com/Aetherance/kv/engine/raftstore/meta"
 	"github.com/Aetherance/kv/engine/raftstore/runner"
-	"github.com/Aetherance/kv/engine/raftstore/snap"
 	engine_util "github.com/Aetherance/kv/engine/util"
 	"github.com/Aetherance/kv/engine/util/worker"
 	"github.com/Aetherance/kv/log"
@@ -64,7 +63,6 @@ type GlobalContext struct {
 	engine              *engine_util.Engines
 	store               *metapb.Store
 	storeMeta           *storeMeta
-	snapMgr             *snap.SnapManager
 	router              *router
 	trans               Transport
 	regionTaskSender    chan<- worker.Task
@@ -146,8 +144,7 @@ func (bs *Raftstore) start(
 	store *metapb.Store,
 	cfg *config.Config,
 	engines *engine_util.Engines,
-	trans Transport,
-	snapMgr *snap.SnapManager) error {
+	trans Transport) error {
 	wg := new(sync.WaitGroup)
 	bs.workers = &workers{
 		regionWorker:    worker.NewWorker("snapshot-worker", wg),
@@ -159,7 +156,6 @@ func (bs *Raftstore) start(
 		engine:              engines,
 		store:               store,
 		storeMeta:           newStoreMeta(),
-		snapMgr:             snapMgr,
 		router:              bs.router,
 		trans:               trans,
 		regionTaskSender:    bs.workers.regionWorker.Sender(),

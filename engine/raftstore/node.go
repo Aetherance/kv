@@ -7,7 +7,6 @@ import (
 
 	"github.com/Aetherance/kv/engine/config"
 	"github.com/Aetherance/kv/engine/raftstore/meta"
-	"github.com/Aetherance/kv/engine/raftstore/snap"
 	engine_util "github.com/Aetherance/kv/engine/util"
 	"github.com/Aetherance/kv/log"
 	"github.com/Aetherance/kv/proto/pkg/metapb"
@@ -41,7 +40,7 @@ func NewNode(system *Raftstore, cfg *config.Config) *Node {
 	}
 }
 
-func (n *Node) Start(engines *engine_util.Engines, trans Transport, snapMgr *snap.SnapManager) error {
+func (n *Node) Start(engines *engine_util.Engines, trans Transport) error {
 	storeID, err := n.checkStore(engines)
 	if err != nil {
 		return err
@@ -70,7 +69,7 @@ func (n *Node) Start(engines *engine_util.Engines, trans Transport, snapMgr *sna
 	}
 
 	log.Infof("start raft store node, storeID: %d", n.store.GetId())
-	return n.system.start(n.store, n.cfg, engines, trans, snapMgr)
+	return n.system.start(n.store, n.cfg, engines, trans)
 }
 
 // checkStore returns the persisted store id, or 0 if the store is fresh.
