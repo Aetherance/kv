@@ -2,7 +2,6 @@ package raft_storage
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	badger "github.com/dgraph-io/badger/v4"
@@ -45,12 +44,9 @@ func NewRaftStorage(conf *config.Config) *RaftStorage {
 	kvPath := filepath.Join(dbPath, "kv")
 	raftPath := filepath.Join(dbPath, "raft")
 
-	os.MkdirAll(kvPath, os.ModePerm)
-	os.MkdirAll(raftPath, os.ModePerm)
-
-	raftDB := engine_util.CreateDB(raftPath, true)
-	kvDB := engine_util.CreateDB(kvPath, false)
-	engines := engine_util.NewEngines(kvDB, raftDB, kvPath, raftPath)
+	raftDB := engine_util.CreateDB(raftPath)
+	kvDB := engine_util.CreateDB(kvPath)
+	engines := engine_util.NewEngines(kvDB, raftDB)
 
 	return &RaftStorage{engines: engines, config: conf}
 }

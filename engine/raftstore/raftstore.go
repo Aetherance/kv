@@ -147,8 +147,8 @@ func (bs *Raftstore) start(
 	trans Transport) error {
 	wg := new(sync.WaitGroup)
 	bs.workers = &workers{
-		regionWorker:    worker.NewWorker("snapshot-worker", wg),
-		raftLogGCWorker: worker.NewWorker("raft-gc-worker", wg),
+		regionWorker:    worker.NewWorker(wg),
+		raftLogGCWorker: worker.NewWorker(wg),
 		wg:              wg,
 	}
 	bs.ctx = &GlobalContext{
