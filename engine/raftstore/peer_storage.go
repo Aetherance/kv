@@ -202,10 +202,6 @@ func (ps *PeerStorage) Region() *metapb.Region {
 	return ps.region
 }
 
-func (ps *PeerStorage) SetRegion(region *metapb.Region) {
-	ps.region = region
-}
-
 func (ps *PeerStorage) checkRange(low, high uint64) error {
 	if low > high {
 		return fmt.Errorf("low %d is greater than high %d", low, high)

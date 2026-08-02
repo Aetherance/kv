@@ -17,10 +17,6 @@ import (
 	"github.com/Aetherance/kv/raft"
 )
 
-func NotifyStaleReq(term uint64, cb *message.Callback) {
-	cb.Done(ErrRespStaleCommand(term))
-}
-
 func NotifyReqRegionRemoved(regionId uint64, cb *message.Callback) {
 	regionNotFound := &util.ErrRegionNotFound{RegionId: regionId}
 	resp := ErrResp(regionNotFound)
@@ -131,7 +127,7 @@ func NewPeer(storeId uint64, cfg *config.Config, engines *engine_util.Engines, r
 		peerStorage: ps,
 		peerCache:   make(map[uint64]*metapb.Peer),
 		Tag:         tag,
-		ticker:      newTicker(region.GetId(), cfg),
+		ticker:      newTicker(cfg),
 	}
 
 	// If this region has only one peer and I am the one, campaign directly.
@@ -147,10 +143,6 @@ func NewPeer(storeId uint64, cfg *config.Config, engines *engine_util.Engines, r
 
 func (p *peer) insertPeerCache(peer *metapb.Peer) {
 	p.peerCache[peer.GetId()] = peer
-}
-
-func (p *peer) removePeerCache(peerID uint64) {
-	delete(p.peerCache, peerID)
 }
 
 func (p *peer) getPeerFromCache(peerID uint64) *metapb.Peer {
@@ -228,14 +220,6 @@ func (p *peer) storeID() uint64 {
 
 func (p *peer) Region() *metapb.Region {
 	return p.peerStorage.Region()
-}
-
-// / Set the region of a peer.
-// /
-// / This will update the region of the peer, caller must ensure the region
-// / has been preserved in a durable device.
-func (p *peer) SetRegion(region *metapb.Region) {
-	p.peerStorage.SetRegion(region)
 }
 
 func (p *peer) PeerId() uint64 {

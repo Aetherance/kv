@@ -1,8 +1,6 @@
 package message
 
 import (
-	"time"
-
 	"github.com/Aetherance/kv/proto/pkg/raft_cmdpb"
 	badger "github.com/dgraph-io/badger/v4"
 )
@@ -26,15 +24,6 @@ func (cb *Callback) Done(resp *raft_cmdpb.RaftCmdResponse) {
 func (cb *Callback) WaitResp() *raft_cmdpb.RaftCmdResponse {
 	select {
 	case <-cb.done:
-		return cb.Resp
-	}
-}
-
-func (cb *Callback) WaitRespWithTimeout(timeout time.Duration) *raft_cmdpb.RaftCmdResponse {
-	select {
-	case <-cb.done:
-		return cb.Resp
-	case <-time.After(timeout):
 		return cb.Resp
 	}
 }

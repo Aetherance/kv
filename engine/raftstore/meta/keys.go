@@ -32,14 +32,11 @@ const (
 var (
 	MinKey           = []byte{}
 	MaxKey           = []byte{255}
-	LocalMinKey      = []byte{LocalPrefix}
-	LocalMaxKey      = []byte{LocalPrefix + 1}
 	RegionMetaMinKey = []byte{LocalPrefix, RegionMetaPrefix}
 	RegionMetaMaxKey = []byte{LocalPrefix, RegionMetaPrefix + 1}
 
 	// Following keys are all local keys, so the first byte must be 0x01.
-	PrepareBootstrapKey = []byte{LocalPrefix, 0x01}
-	StoreIdentKey       = []byte{LocalPrefix, 0x02}
+	StoreIdentKey = []byte{LocalPrefix, 0x02}
 )
 
 func makeRegionPrefix(regionID uint64, suffix byte) []byte {
@@ -61,14 +58,6 @@ func makeRegionKey(regionID uint64, suffix byte, subID uint64) []byte {
 	return key
 }
 
-func RegionRaftPrefixKey(regionID uint64) []byte {
-	key := make([]byte, 10)
-	key[0] = LocalPrefix
-	key[1] = RegionRaftPrefix
-	binary.BigEndian.PutUint64(key[2:], regionID)
-	return key
-}
-
 func RaftLogKey(regionID, index uint64) []byte {
 	return makeRegionKey(regionID, RaftLogSuffix, index)
 }
@@ -81,10 +70,6 @@ func ApplyStateKey(regionID uint64) []byte {
 	return makeRegionPrefix(regionID, ApplyStateSuffix)
 }
 
-func IsRaftStateKey(key []byte) bool {
-	return len(key) == 11 && key[0] == LocalPrefix && key[1] == RegionRaftPrefix
-}
-
 func DecodeRegionMetaKey(key []byte) (uint64, byte, error) {
 	if len(RegionMetaMinKey)+8+1 != len(key) {
 		return 0, 0, fmt.Errorf("invalid region meta key length for key %v", key)
@@ -94,14 +79,6 @@ func DecodeRegionMetaKey(key []byte) (uint64, byte, error) {
 	}
 	regionID := binary.BigEndian.Uint64(key[len(RegionMetaMinKey):])
 	return regionID, key[len(key)-1], nil
-}
-
-func RegionMetaPrefixKey(regionID uint64) []byte {
-	key := make([]byte, 10)
-	key[0] = LocalPrefix
-	key[1] = RegionMetaPrefix
-	binary.BigEndian.PutUint64(key[2:], regionID)
-	return key
 }
 
 func RegionStateKey(regionID uint64) []byte {

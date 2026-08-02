@@ -8,7 +8,6 @@ import (
 )
 
 type ticker struct {
-	regionID  uint64
 	tick      int64
 	schedules []tickSchedule
 }
@@ -18,10 +17,9 @@ type tickSchedule struct {
 	interval int64
 }
 
-func newTicker(regionID uint64, cfg *config.Config) *ticker {
+func newTicker(cfg *config.Config) *ticker {
 	baseInterval := cfg.RaftBaseTickInterval
 	t := &ticker{
-		regionID:  regionID,
 		schedules: make([]tickSchedule, 2),
 	}
 	t.schedules[int(PeerTickRaft)].interval = 1

@@ -8,14 +8,6 @@ import (
 	badger "github.com/dgraph-io/badger/v4"
 )
 
-func GetRegionLocalState(db *badger.DB, regionId uint64) (*rspb.RegionLocalState, error) {
-	regionLocalState := new(rspb.RegionLocalState)
-	if err := engine_util.GetMeta(db, RegionStateKey(regionId), regionLocalState); err != nil {
-		return regionLocalState, err
-	}
-	return regionLocalState, nil
-}
-
 func GetRaftLocalState(db *badger.DB, regionId uint64) (*rspb.RaftLocalState, error) {
 	raftLocalState := new(rspb.RaftLocalState)
 	if err := engine_util.GetMeta(db, RaftStateKey(regionId), raftLocalState); err != nil {

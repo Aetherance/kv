@@ -108,7 +108,3 @@ func (n *Node) Stop() {
 	log.Infof("stop raft store thread, storeID: %d", n.store.GetId())
 	n.system.shutDown()
 }
-
-func (n *Node) GetStoreID() uint64 {
-	return n.store.GetId()
-}
