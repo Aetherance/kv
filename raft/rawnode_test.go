@@ -7,14 +7,6 @@ import (
 	pb "github.com/Aetherance/kv/proto/pkg/raftpb"
 )
 
-type ignoreSizeHintMemStorage struct {
-	*MemoryStorage
-}
-
-func (s *ignoreSizeHintMemStorage) Entries(lo, hi uint64, maxSize uint64) ([]*pb.Entry, error) {
-	return s.MemoryStorage.Entries(lo, hi)
-}
-
 // TestRawNodeStart ensures that a node can be started correctly, and can accept and commit
 // proposals.
 func TestRawNodeStart2AC(t *testing.T) {

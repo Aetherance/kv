@@ -15,11 +15,7 @@ type RaftLogGCTask struct {
 	EndIdx     uint64
 }
 
-type raftLogGcTaskRes uint64
-
-type raftLogGCTaskHandler struct {
-	taskResCh chan<- raftLogGcTaskRes
-}
+type raftLogGCTaskHandler struct{}
 
 func NewRaftLogGCTaskHandler() *raftLogGCTaskHandler {
 	return &raftLogGCTaskHandler{}
@@ -66,13 +62,6 @@ func (r *raftLogGCTaskHandler) gcRaftLog(raftDb *badger.DB, regionId, startIdx, 
 	return endIdx - firstIdx, nil
 }
 
-func (r *raftLogGCTaskHandler) reportCollected(collected uint64) {
-	if r.taskResCh == nil {
-		return
-	}
-	r.taskResCh <- raftLogGcTaskRes(collected)
-}
-
 func (r *raftLogGCTaskHandler) Handle(t worker.Task) {
 	logGcTask, ok := t.(*RaftLogGCTask)
 	if !ok {
@@ -86,5 +75,4 @@ func (r *raftLogGCTaskHandler) Handle(t worker.Task) {
 	} else {
 		log.Debugf("collected log entries. [regionId: %d, entryCount: %d]", logGcTask.RegionID, collected)
 	}
-	r.reportCollected(collected)
 }
