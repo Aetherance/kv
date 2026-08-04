@@ -138,11 +138,11 @@ func (rs *RaftStorage) Start() error {
 		return err
 	}
 	rawNode, err := raft.NewRawNode(&raft.Config{
-		ID:            rs.config.StoreID,
-		ElectionTick:  rs.config.RaftElectionTimeoutTicks,
-		HeartbeatTick: rs.config.RaftHeartbeatTicks,
-		Storage:       state,
-		Applied:       state.applied(),
+		ID:              rs.config.StoreID,
+		ElectionTick:    rs.config.RaftElectionTimeoutTicks,
+		HeartbeatTick:   rs.config.RaftHeartbeatTicks,
+		PersistentState: state,
+		Applied:         state.applied(),
 	})
 	if err != nil {
 		cleanup()
