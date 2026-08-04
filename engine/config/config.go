@@ -17,7 +17,7 @@ type Config struct {
 	RaftHeartbeatTicks       int
 	RaftLogGcCountLimit      uint64
 
-	// Runtime tick interval.
+	// Raft tick interval.
 	RaftBaseTickInterval time.Duration
 }
 

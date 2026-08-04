@@ -13,10 +13,8 @@ import (
 	"sync/atomic"
 
 	badger "github.com/dgraph-io/badger/v4"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/Aetherance/kv/engine/config"
-	"github.com/Aetherance/kv/engine/raftruntime"
 	"github.com/Aetherance/kv/engine/storage"
 	engine_util "github.com/Aetherance/kv/engine/util"
 	"github.com/Aetherance/kv/proto/pkg/raft_cmdpb"
@@ -26,9 +24,9 @@ import (
 )
 
 var (
-	runtimeNamespace = []byte("\xfftaluskv/raft/")
-	identityKey      = []byte("\xfftaluskv/node-id")
-	proposalMagic    = [4]byte{'T', 'K', 'V', 1}
+	raftNamespace = []byte("\xfftaluskv/raft/")
+	identityKey   = []byte("\xfftaluskv/node-id")
+	proposalMagic = [4]byte{'T', 'K', 'V', 1}
 )
 
 var errLeadershipLost = errors.New("raft storage: leadership lost before proposal was applied")
@@ -38,28 +36,25 @@ type requestID struct {
 	sequence uint64
 }
 
-type proposalResult struct {
-	response *raft_cmdpb.RaftCmdResponse
-	err      error
-}
-
-// RaftStorage is the application-facing adapter around the generic Raft
-// runtime. Fixed node addresses, request correlation, and gRPC envelopes live
-// here so the runtime remains unaware of stores, regions, and groups.
+// RaftStorage runs one local replica of a fixed Raft-backed KV storage.
 type RaftStorage struct {
 	rspb.UnimplementedRaftServiceServer
 
 	config *config.Config
 	db     *badger.DB
+	node   *raft.RawNode
+	state  *raftStateStorage
 
-	runner    *raftruntime.Runner
 	transport *ServerTransport
 	cancel    context.CancelFunc
-	runDone   chan struct{}
+	inbox     chan raftEvent
+	done      chan struct{}
+
+	runErr error
 
 	sequence  atomic.Uint64
 	pendingMu sync.Mutex
-	pending   map[uint64]chan proposalResult
+	pending   map[uint64]chan error
 
 	lifecycleMu sync.Mutex
 	started     bool
@@ -69,7 +64,7 @@ type RaftStorage struct {
 func NewRaftStorage(conf *config.Config) *RaftStorage {
 	return &RaftStorage{
 		config:  conf,
-		pending: make(map[uint64]chan proposalResult),
+		pending: make(map[uint64]chan error),
 	}
 }
 
@@ -95,22 +90,14 @@ func (rs *RaftStorage) Write(batch []storage.Modify) error {
 		}
 	}
 
-	response, err := rs.propose(&raft_cmdpb.RaftCmdRequest{Requests: requests})
-	if err != nil {
-		return err
-	}
-	if len(response.Responses) != len(requests) {
-		return fmt.Errorf("raft storage: response count %d does not match request count %d", len(response.Responses), len(requests))
-	}
-	return nil
+	return rs.propose(&raft_cmdpb.RaftCmdRequest{Requests: requests})
 }
 
 func (rs *RaftStorage) Reader() (storage.StorageReader, error) {
 	request := &raft_cmdpb.RaftCmdRequest{Requests: []*raft_cmdpb.Request{{
-		CmdType: raft_cmdpb.CmdType_Snap,
-		Snap:    &raft_cmdpb.SnapRequest{},
+		CmdType: raft_cmdpb.CmdType_ReadBarrier,
 	}}}
-	if _, err := rs.propose(request); err != nil {
+	if err := rs.propose(request); err != nil {
 		return nil, err
 	}
 	return &badgerReader{txn: rs.db.NewTransaction(false)}, nil
@@ -144,10 +131,7 @@ func (rs *RaftStorage) Start() error {
 	}
 
 	peers := sortedPeerIDs(rs.config.Peers)
-	engine, err := raftruntime.OpenBadgerEngine(db, runtimeNamespace, peers, raftruntime.Snapshotter{
-		Capture: captureKVSnapshot,
-		Restore: restoreKVSnapshot,
-	})
+	state, err := openRaftStateStorage(db, peers)
 	if err != nil {
 		cleanup()
 		return err
@@ -156,42 +140,36 @@ func (rs *RaftStorage) Start() error {
 		ID:            rs.config.StoreID,
 		ElectionTick:  rs.config.RaftElectionTimeoutTicks,
 		HeartbeatTick: rs.config.RaftHeartbeatTicks,
-		Storage:       engine,
-		Applied:       engine.AppliedIndex(),
+		Storage:       state,
+		Applied:       state.applied(),
 	})
 	if err != nil {
 		cleanup()
 		return err
 	}
+	rs.state = state
+	rs.node = rawNode
 
 	rs.transport = NewServerTransport(rs.config)
-	runtime := raftruntime.New(rawNode, engine, rs.applyCommand, raftruntime.Config{
-		CompactThreshold: rs.config.RaftLogGcCountLimit,
-		Send:             rs.sendMessages,
-		Applied:          rs.onApplied,
-		StateChanged:     rs.onStateChanged,
-	})
-	rs.runner = raftruntime.NewRunner(runtime, rs.config.RaftBaseTickInterval)
-	runCtx, cancel := context.WithCancel(context.Background())
-	rs.cancel = cancel
-	rs.runDone = make(chan struct{})
-	go func() {
-		defer close(rs.runDone)
-		_ = rs.runner.Run(runCtx)
-		rs.failPending(raftruntime.ErrStopped)
-	}()
-	rs.started = true
-
+	rs.inbox = make(chan raftEvent, 256)
+	rs.done = make(chan struct{})
+	rs.runErr = nil
 	if len(peers) == 1 {
-		if err := rs.runner.Campaign(context.Background()); err != nil {
-			cancel()
-			<-rs.runDone
+		if err := rs.node.Campaign(); err != nil {
 			rs.transport.Stop()
 			cleanup()
-			rs.started = false
+			return err
+		}
+		if err := rs.handleReady(); err != nil {
+			rs.transport.Stop()
+			cleanup()
 			return err
 		}
 	}
+	runCtx, cancel := context.WithCancel(context.Background())
+	rs.cancel = cancel
+	go rs.run(runCtx)
+	rs.started = true
 	return nil
 }
 
@@ -204,7 +182,7 @@ func (rs *RaftStorage) Stop() error {
 	rs.stopped = true
 	started := rs.started
 	cancel := rs.cancel
-	runDone := rs.runDone
+	done := rs.done
 	transport := rs.transport
 	db := rs.db
 	rs.lifecycleMu.Unlock()
@@ -215,13 +193,13 @@ func (rs *RaftStorage) Stop() error {
 	if cancel != nil {
 		cancel()
 	}
-	// Cancel network streams before waiting for the runner so a blocked send
+	// Cancel network streams before waiting for the event loop so a blocked send
 	// cannot hold shutdown indefinitely.
 	if transport != nil {
 		transport.Stop()
 	}
-	if runDone != nil {
-		<-runDone
+	if done != nil {
+		<-done
 	}
 	if db != nil {
 		return db.Close()
@@ -229,8 +207,7 @@ func (rs *RaftStorage) Stop() error {
 	return nil
 }
 
-// Raft adapts the existing gRPC envelope to the raw messages consumed by the
-// runtime. The envelope is intentionally outside the generic runtime.
+// Raft receives raw Raft messages from another store.
 func (rs *RaftStorage) Raft(stream rspb.RaftService_RaftServer) error {
 	for {
 		envelope, err := stream.Recv()
@@ -247,91 +224,71 @@ func (rs *RaftStorage) Raft(stream rspb.RaftService_RaftServer) error {
 		if message.To != 0 && message.To != rs.config.StoreID {
 			continue
 		}
-		if err := rs.runner.Step(stream.Context(), message); err != nil {
+		if err := rs.step(stream.Context(), message); err != nil {
 			return err
 		}
 	}
 }
 
-func (rs *RaftStorage) propose(request *raft_cmdpb.RaftCmdRequest) (*raft_cmdpb.RaftCmdResponse, error) {
+func (rs *RaftStorage) propose(request *raft_cmdpb.RaftCmdRequest) error {
 	payload, err := request.Marshal()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	sequence := rs.sequence.Add(1)
 	data := encodeProposal(requestID{nodeID: rs.config.StoreID, sequence: sequence}, payload)
-	resultCh := make(chan proposalResult, 1)
+	resultCh := make(chan error, 1)
 
 	rs.pendingMu.Lock()
 	rs.pending[sequence] = resultCh
 	rs.pendingMu.Unlock()
 
-	if err := rs.runner.Propose(context.Background(), data); err != nil {
+	if err := rs.proposeData(context.Background(), data); err != nil {
 		rs.removePending(sequence)
-		return nil, err
+		return err
 	}
-	result := <-resultCh
-	return result.response, result.err
+	return <-resultCh
 }
 
-func (rs *RaftStorage) applyCommand(txn *badger.Txn, _ uint64, data []byte) ([]byte, error) {
+func (rs *RaftStorage) applyCommand(txn *badger.Txn, _ uint64, data []byte) error {
 	_, payload, err := decodeProposal(data)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	request := new(raft_cmdpb.RaftCmdRequest)
 	if err := request.Unmarshal(payload); err != nil {
-		return nil, err
+		return err
 	}
 
-	response := &raft_cmdpb.RaftCmdResponse{
-		Header:    &raft_cmdpb.RaftResponseHeader{},
-		Responses: make([]*raft_cmdpb.Response, 0, len(request.Requests)),
-	}
 	for _, command := range request.Requests {
 		switch command.CmdType {
 		case raft_cmdpb.CmdType_Put:
 			if command.Put == nil {
-				return nil, errors.New("raft storage: put command has no payload")
+				return errors.New("raft storage: put command has no payload")
 			}
 			if err := txn.Set(engine_util.KeyWithCF(command.Put.Cf, command.Put.Key), command.Put.Value); err != nil {
-				return nil, err
+				return err
 			}
 		case raft_cmdpb.CmdType_Delete:
 			if command.Delete == nil {
-				return nil, errors.New("raft storage: delete command has no payload")
+				return errors.New("raft storage: delete command has no payload")
 			}
 			if err := txn.Delete(engine_util.KeyWithCF(command.Delete.Cf, command.Delete.Key)); err != nil {
-				return nil, err
+				return err
 			}
-		case raft_cmdpb.CmdType_Snap:
+		case raft_cmdpb.CmdType_ReadBarrier:
 			// A committed no-op command is the deliberately simple read barrier.
 		default:
-			return nil, fmt.Errorf("raft storage: unsupported command %s", command.CmdType)
+			return fmt.Errorf("raft storage: unsupported command %s", command.CmdType)
 		}
-		response.Responses = append(response.Responses, &raft_cmdpb.Response{CmdType: command.CmdType})
 	}
-	return proto.Marshal(response)
+	return nil
 }
 
-func (rs *RaftStorage) onApplied(entries []raftruntime.Applied) {
-	for _, entry := range entries {
-		if entry.Type != raftpb.EntryType_EntryNormal {
-			continue
-		}
-		id, _, err := decodeProposal(entry.Data)
-		if err != nil || id.nodeID != rs.config.StoreID {
-			continue
-		}
-		response := new(raft_cmdpb.RaftCmdResponse)
-		err = proto.Unmarshal(entry.Result, response)
-		rs.completePending(id.sequence, proposalResult{response: response, err: err})
-	}
-}
-
-func (rs *RaftStorage) onStateChanged(state raft.SoftState) {
-	if state.RaftState != raft.StateLeader {
-		rs.failPending(errLeadershipLost)
+func (rs *RaftStorage) onApplied(data []byte) {
+	id, _, err := decodeProposal(data)
+	if err == nil && id.nodeID == rs.config.StoreID {
+		rs.completePending(id.sequence, nil)
 	}
 }
 
@@ -343,13 +300,13 @@ func (rs *RaftStorage) sendMessages(messages []*raftpb.Message) {
 	}
 }
 
-func (rs *RaftStorage) completePending(sequence uint64, result proposalResult) {
+func (rs *RaftStorage) completePending(sequence uint64, err error) {
 	rs.pendingMu.Lock()
 	resultCh := rs.pending[sequence]
 	delete(rs.pending, sequence)
 	rs.pendingMu.Unlock()
 	if resultCh != nil {
-		resultCh <- result
+		resultCh <- err
 	}
 }
 
@@ -362,10 +319,10 @@ func (rs *RaftStorage) removePending(sequence uint64) {
 func (rs *RaftStorage) failPending(err error) {
 	rs.pendingMu.Lock()
 	pending := rs.pending
-	rs.pending = make(map[uint64]chan proposalResult)
+	rs.pending = make(map[uint64]chan error)
 	rs.pendingMu.Unlock()
 	for _, resultCh := range pending {
-		resultCh <- proposalResult{err: err}
+		resultCh <- err
 	}
 }
 

@@ -2,14 +2,13 @@ package raft_storage
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"sync"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/Aetherance/kv/engine/config"
-	"github.com/Aetherance/kv/proto/pkg/metapb"
 	rspb "github.com/Aetherance/kv/proto/pkg/raft_serverpb"
 	"github.com/Aetherance/kv/proto/pkg/raftpb"
 )
@@ -48,7 +47,7 @@ func (c *raftConn) Stop() {
 	_ = c.client.Close()
 }
 
-// ServerTransport is the fixed-topology network adapter outside raftruntime.
+// ServerTransport sends messages for the fixed-topology Raft storage.
 // Connections are resolved by the raw Raft destination ID and pooled.
 type ServerTransport struct {
 	cfg *config.Config
@@ -71,18 +70,13 @@ func (t *ServerTransport) Send(message *raftpb.Message) error {
 	storeID := message.To
 	addr, ok := t.cfg.Peers[storeID]
 	if !ok {
-		log.Printf("no address for store %d, drop message", storeID)
-		return nil
+		return fmt.Errorf("no address for store %d", storeID)
 	}
 	conn, err := t.getConn(storeID, addr)
 	if err != nil {
 		return err
 	}
-	envelope := &rspb.RaftMessage{
-		FromPeer: &metapb.Peer{Id: message.From, StoreId: message.From},
-		ToPeer:   &metapb.Peer{Id: message.To, StoreId: message.To},
-		Message:  message,
-	}
+	envelope := &rspb.RaftMessage{Message: message}
 	if err := conn.Send(envelope); err != nil {
 		// Drop the broken connection so the next send reconnects.
 		t.mu.Lock()

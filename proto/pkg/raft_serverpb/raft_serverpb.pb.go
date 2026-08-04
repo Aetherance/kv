@@ -7,7 +7,6 @@
 package raft_serverpb
 
 import (
-	metapb "github.com/Aetherance/kv/proto/pkg/metapb"
 	raftpb "github.com/Aetherance/kv/proto/pkg/raftpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -23,64 +22,9 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Normal indicates that this Peer is normal;
-// Tombstone shows that this Peer has been removed from Region and cannot join in Raft Group.
-type PeerState int32
-
-const (
-	PeerState_Normal    PeerState = 0
-	PeerState_Tombstone PeerState = 2
-)
-
-// Enum value maps for PeerState.
-var (
-	PeerState_name = map[int32]string{
-		0: "Normal",
-		2: "Tombstone",
-	}
-	PeerState_value = map[string]int32{
-		"Normal":    0,
-		"Tombstone": 2,
-	}
-)
-
-func (x PeerState) Enum() *PeerState {
-	p := new(PeerState)
-	*p = x
-	return p
-}
-
-func (x PeerState) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (PeerState) Descriptor() protoreflect.EnumDescriptor {
-	return file_raft_serverpb_proto_enumTypes[0].Descriptor()
-}
-
-func (PeerState) Type() protoreflect.EnumType {
-	return &file_raft_serverpb_proto_enumTypes[0]
-}
-
-func (x PeerState) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use PeerState.Descriptor instead.
-func (PeerState) EnumDescriptor() ([]byte, []int) {
-	return file_raft_serverpb_proto_rawDescGZIP(), []int{0}
-}
-
-// The message sent between Raft peer, it wraps the raft meessage with some meta information.
 type RaftMessage struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	RegionId    uint64                 `protobuf:"varint,1,opt,name=region_id,json=regionId,proto3" json:"region_id,omitempty"`
-	FromPeer    *metapb.Peer           `protobuf:"bytes,2,opt,name=from_peer,json=fromPeer,proto3" json:"from_peer,omitempty"`
-	ToPeer      *metapb.Peer           `protobuf:"bytes,3,opt,name=to_peer,json=toPeer,proto3" json:"to_peer,omitempty"`
-	Message     *raftpb.Message        `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
-	RegionEpoch *metapb.RegionEpoch    `protobuf:"bytes,5,opt,name=region_epoch,json=regionEpoch,proto3" json:"region_epoch,omitempty"`
-	// true means to_peer is a tombstone peer and it should remove itself.
-	IsTombstone   bool `protobuf:"varint,6,opt,name=is_tombstone,json=isTombstone,proto3" json:"is_tombstone,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Message       *raftpb.Message        `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -115,27 +59,6 @@ func (*RaftMessage) Descriptor() ([]byte, []int) {
 	return file_raft_serverpb_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *RaftMessage) GetRegionId() uint64 {
-	if x != nil {
-		return x.RegionId
-	}
-	return 0
-}
-
-func (x *RaftMessage) GetFromPeer() *metapb.Peer {
-	if x != nil {
-		return x.FromPeer
-	}
-	return nil
-}
-
-func (x *RaftMessage) GetToPeer() *metapb.Peer {
-	if x != nil {
-		return x.ToPeer
-	}
-	return nil
-}
-
 func (x *RaftMessage) GetMessage() *raftpb.Message {
 	if x != nil {
 		return x.Message
@@ -143,299 +66,6 @@ func (x *RaftMessage) GetMessage() *raftpb.Message {
 	return nil
 }
 
-func (x *RaftMessage) GetRegionEpoch() *metapb.RegionEpoch {
-	if x != nil {
-		return x.RegionEpoch
-	}
-	return nil
-}
-
-func (x *RaftMessage) GetIsTombstone() bool {
-	if x != nil {
-		return x.IsTombstone
-	}
-	return false
-}
-
-// Used to store the persistent state for Raft, including the hard state for raft and the last index of the raft log.
-type RaftLocalState struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	HardState     *raftpb.HardState      `protobuf:"bytes,1,opt,name=hard_state,json=hardState,proto3" json:"hard_state,omitempty"`
-	LastIndex     uint64                 `protobuf:"varint,2,opt,name=last_index,json=lastIndex,proto3" json:"last_index,omitempty"`
-	LastTerm      uint64                 `protobuf:"varint,3,opt,name=last_term,json=lastTerm,proto3" json:"last_term,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RaftLocalState) Reset() {
-	*x = RaftLocalState{}
-	mi := &file_raft_serverpb_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RaftLocalState) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RaftLocalState) ProtoMessage() {}
-
-func (x *RaftLocalState) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_serverpb_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RaftLocalState.ProtoReflect.Descriptor instead.
-func (*RaftLocalState) Descriptor() ([]byte, []int) {
-	return file_raft_serverpb_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *RaftLocalState) GetHardState() *raftpb.HardState {
-	if x != nil {
-		return x.HardState
-	}
-	return nil
-}
-
-func (x *RaftLocalState) GetLastIndex() uint64 {
-	if x != nil {
-		return x.LastIndex
-	}
-	return 0
-}
-
-func (x *RaftLocalState) GetLastTerm() uint64 {
-	if x != nil {
-		return x.LastTerm
-	}
-	return 0
-}
-
-// Used to store the persistent state for Raft state machine.
-type RaftApplyState struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Record the applied index of the state machine to make sure
-	// not apply any index twice after restart.
-	AppliedIndex uint64 `protobuf:"varint,1,opt,name=applied_index,json=appliedIndex,proto3" json:"applied_index,omitempty"`
-	// Record the index and term of the last raft log that have been truncated. (Used in 2C)
-	TruncatedState *RaftTruncatedState `protobuf:"bytes,2,opt,name=truncated_state,json=truncatedState,proto3" json:"truncated_state,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
-}
-
-func (x *RaftApplyState) Reset() {
-	*x = RaftApplyState{}
-	mi := &file_raft_serverpb_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RaftApplyState) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RaftApplyState) ProtoMessage() {}
-
-func (x *RaftApplyState) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_serverpb_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RaftApplyState.ProtoReflect.Descriptor instead.
-func (*RaftApplyState) Descriptor() ([]byte, []int) {
-	return file_raft_serverpb_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *RaftApplyState) GetAppliedIndex() uint64 {
-	if x != nil {
-		return x.AppliedIndex
-	}
-	return 0
-}
-
-func (x *RaftApplyState) GetTruncatedState() *RaftTruncatedState {
-	if x != nil {
-		return x.TruncatedState
-	}
-	return nil
-}
-
-// The truncated state for Raft log compaction.
-type RaftTruncatedState struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Index         uint64                 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
-	Term          uint64                 `protobuf:"varint,2,opt,name=term,proto3" json:"term,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RaftTruncatedState) Reset() {
-	*x = RaftTruncatedState{}
-	mi := &file_raft_serverpb_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RaftTruncatedState) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RaftTruncatedState) ProtoMessage() {}
-
-func (x *RaftTruncatedState) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_serverpb_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RaftTruncatedState.ProtoReflect.Descriptor instead.
-func (*RaftTruncatedState) Descriptor() ([]byte, []int) {
-	return file_raft_serverpb_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *RaftTruncatedState) GetIndex() uint64 {
-	if x != nil {
-		return x.Index
-	}
-	return 0
-}
-
-func (x *RaftTruncatedState) GetTerm() uint64 {
-	if x != nil {
-		return x.Term
-	}
-	return 0
-}
-
-// Used to store Region information and the corresponding Peer state on this Store.
-type RegionLocalState struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	State         PeerState              `protobuf:"varint,1,opt,name=state,proto3,enum=raft_serverpb.PeerState" json:"state,omitempty"`
-	Region        *metapb.Region         `protobuf:"bytes,2,opt,name=region,proto3" json:"region,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RegionLocalState) Reset() {
-	*x = RegionLocalState{}
-	mi := &file_raft_serverpb_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RegionLocalState) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RegionLocalState) ProtoMessage() {}
-
-func (x *RegionLocalState) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_serverpb_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RegionLocalState.ProtoReflect.Descriptor instead.
-func (*RegionLocalState) Descriptor() ([]byte, []int) {
-	return file_raft_serverpb_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *RegionLocalState) GetState() PeerState {
-	if x != nil {
-		return x.State
-	}
-	return PeerState_Normal
-}
-
-func (x *RegionLocalState) GetRegion() *metapb.Region {
-	if x != nil {
-		return x.Region
-	}
-	return nil
-}
-
-// The persistent identification for Store.
-// It used to recover the store id after restart.
-type StoreIdent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ClusterId     uint64                 `protobuf:"varint,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
-	StoreId       uint64                 `protobuf:"varint,2,opt,name=store_id,json=storeId,proto3" json:"store_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *StoreIdent) Reset() {
-	*x = StoreIdent{}
-	mi := &file_raft_serverpb_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *StoreIdent) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*StoreIdent) ProtoMessage() {}
-
-func (x *StoreIdent) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_serverpb_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use StoreIdent.ProtoReflect.Descriptor instead.
-func (*StoreIdent) Descriptor() ([]byte, []int) {
-	return file_raft_serverpb_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *StoreIdent) GetClusterId() uint64 {
-	if x != nil {
-		return x.ClusterId
-	}
-	return 0
-}
-
-func (x *StoreIdent) GetStoreId() uint64 {
-	if x != nil {
-		return x.StoreId
-	}
-	return 0
-}
-
-// Snapshot sending and reciveing related messages.
-// Not included in the course scope.
 type KeyValue struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Key           []byte                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
@@ -446,7 +76,7 @@ type KeyValue struct {
 
 func (x *KeyValue) Reset() {
 	*x = KeyValue{}
-	mi := &file_raft_serverpb_proto_msgTypes[6]
+	mi := &file_raft_serverpb_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -458,7 +88,7 @@ func (x *KeyValue) String() string {
 func (*KeyValue) ProtoMessage() {}
 
 func (x *KeyValue) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_serverpb_proto_msgTypes[6]
+	mi := &file_raft_serverpb_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -471,7 +101,7 @@ func (x *KeyValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyValue.ProtoReflect.Descriptor instead.
 func (*KeyValue) Descriptor() ([]byte, []int) {
-	return file_raft_serverpb_proto_rawDescGZIP(), []int{6}
+	return file_raft_serverpb_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *KeyValue) GetKey() []byte {
@@ -490,7 +120,6 @@ func (x *KeyValue) GetValue() []byte {
 
 type RaftSnapshotData struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Region        *metapb.Region         `protobuf:"bytes,1,opt,name=region,proto3" json:"region,omitempty"`
 	Data          []*KeyValue            `protobuf:"bytes,3,rep,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -498,7 +127,7 @@ type RaftSnapshotData struct {
 
 func (x *RaftSnapshotData) Reset() {
 	*x = RaftSnapshotData{}
-	mi := &file_raft_serverpb_proto_msgTypes[7]
+	mi := &file_raft_serverpb_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -510,7 +139,7 @@ func (x *RaftSnapshotData) String() string {
 func (*RaftSnapshotData) ProtoMessage() {}
 
 func (x *RaftSnapshotData) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_serverpb_proto_msgTypes[7]
+	mi := &file_raft_serverpb_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -523,14 +152,7 @@ func (x *RaftSnapshotData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RaftSnapshotData.ProtoReflect.Descriptor instead.
 func (*RaftSnapshotData) Descriptor() ([]byte, []int) {
-	return file_raft_serverpb_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *RaftSnapshotData) GetRegion() *metapb.Region {
-	if x != nil {
-		return x.Region
-	}
-	return nil
+	return file_raft_serverpb_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *RaftSnapshotData) GetData() []*KeyValue {
@@ -548,7 +170,7 @@ type Done struct {
 
 func (x *Done) Reset() {
 	*x = Done{}
-	mi := &file_raft_serverpb_proto_msgTypes[8]
+	mi := &file_raft_serverpb_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -560,7 +182,7 @@ func (x *Done) String() string {
 func (*Done) ProtoMessage() {}
 
 func (x *Done) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_serverpb_proto_msgTypes[8]
+	mi := &file_raft_serverpb_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -573,52 +195,22 @@ func (x *Done) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Done.ProtoReflect.Descriptor instead.
 func (*Done) Descriptor() ([]byte, []int) {
-	return file_raft_serverpb_proto_rawDescGZIP(), []int{8}
+	return file_raft_serverpb_proto_rawDescGZIP(), []int{3}
 }
 
 var File_raft_serverpb_proto protoreflect.FileDescriptor
 
 const file_raft_serverpb_proto_rawDesc = "" +
 	"\n" +
-	"\x13raft_serverpb.proto\x12\rraft_serverpb\x1a\fraftpb.proto\x1a\fmetapb.proto\"\xa2\x02\n" +
-	"\vRaftMessage\x12\x1b\n" +
-	"\tregion_id\x18\x01 \x01(\x04R\bregionId\x12)\n" +
-	"\tfrom_peer\x18\x02 \x01(\v2\f.metapb.PeerR\bfromPeer\x12%\n" +
-	"\ato_peer\x18\x03 \x01(\v2\f.metapb.PeerR\x06toPeer\x12)\n" +
-	"\amessage\x18\x04 \x01(\v2\x0f.raftpb.MessageR\amessage\x126\n" +
-	"\fregion_epoch\x18\x05 \x01(\v2\x13.metapb.RegionEpochR\vregionEpoch\x12!\n" +
-	"\fis_tombstone\x18\x06 \x01(\bR\visTombstoneJ\x04\b\a\x10\bJ\x04\b\b\x10\tR\tstart_keyR\aend_key\"~\n" +
-	"\x0eRaftLocalState\x120\n" +
-	"\n" +
-	"hard_state\x18\x01 \x01(\v2\x11.raftpb.HardStateR\thardState\x12\x1d\n" +
-	"\n" +
-	"last_index\x18\x02 \x01(\x04R\tlastIndex\x12\x1b\n" +
-	"\tlast_term\x18\x03 \x01(\x04R\blastTerm\"\x81\x01\n" +
-	"\x0eRaftApplyState\x12#\n" +
-	"\rapplied_index\x18\x01 \x01(\x04R\fappliedIndex\x12J\n" +
-	"\x0ftruncated_state\x18\x02 \x01(\v2!.raft_serverpb.RaftTruncatedStateR\x0etruncatedState\">\n" +
-	"\x12RaftTruncatedState\x12\x14\n" +
-	"\x05index\x18\x01 \x01(\x04R\x05index\x12\x12\n" +
-	"\x04term\x18\x02 \x01(\x04R\x04term\"j\n" +
-	"\x10RegionLocalState\x12.\n" +
-	"\x05state\x18\x01 \x01(\x0e2\x18.raft_serverpb.PeerStateR\x05state\x12&\n" +
-	"\x06region\x18\x02 \x01(\v2\x0e.metapb.RegionR\x06region\"F\n" +
-	"\n" +
-	"StoreIdent\x12\x1d\n" +
-	"\n" +
-	"cluster_id\x18\x01 \x01(\x04R\tclusterId\x12\x19\n" +
-	"\bstore_id\x18\x02 \x01(\x04R\astoreId\"2\n" +
+	"\x13raft_serverpb.proto\x12\rraft_serverpb\x1a\fraftpb.proto\"\xb1\x01\n" +
+	"\vRaftMessage\x12)\n" +
+	"\amessage\x18\x04 \x01(\v2\x0f.raftpb.MessageR\amessageJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tR\tregion_idR\tfrom_peerR\ato_peerR\fregion_epochR\fis_tombstoneR\tstart_keyR\aend_key\"2\n" +
 	"\bKeyValue\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\fR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\fR\x05value\"\x84\x01\n" +
-	"\x10RaftSnapshotData\x12&\n" +
-	"\x06region\x18\x01 \x01(\v2\x0e.metapb.RegionR\x06region\x12+\n" +
-	"\x04data\x18\x03 \x03(\v2\x17.raft_serverpb.KeyValueR\x04dataJ\x04\b\x02\x10\x03J\x04\b\x05\x10\x06R\tfile_sizeR\x04meta\"\x06\n" +
-	"\x04Done*&\n" +
-	"\tPeerState\x12\n" +
-	"\n" +
-	"\x06Normal\x10\x00\x12\r\n" +
-	"\tTombstone\x10\x022J\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\"j\n" +
+	"\x10RaftSnapshotData\x12+\n" +
+	"\x04data\x18\x03 \x03(\v2\x17.raft_serverpb.KeyValueR\x04dataJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x05\x10\x06R\x06regionR\tfile_sizeR\x04meta\"\x06\n" +
+	"\x04Done2J\n" +
 	"\vRaftService\x12;\n" +
 	"\x04Raft\x12\x1a.raft_serverpb.RaftMessage\x1a\x13.raft_serverpb.Done\"\x00(\x01B@Z>github.com/Aetherance/kv/proto/pkg/raft_serverpb;raft_serverpbb\x06proto3"
 
@@ -634,43 +226,24 @@ func file_raft_serverpb_proto_rawDescGZIP() []byte {
 	return file_raft_serverpb_proto_rawDescData
 }
 
-var file_raft_serverpb_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_raft_serverpb_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_raft_serverpb_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_raft_serverpb_proto_goTypes = []any{
-	(PeerState)(0),             // 0: raft_serverpb.PeerState
-	(*RaftMessage)(nil),        // 1: raft_serverpb.RaftMessage
-	(*RaftLocalState)(nil),     // 2: raft_serverpb.RaftLocalState
-	(*RaftApplyState)(nil),     // 3: raft_serverpb.RaftApplyState
-	(*RaftTruncatedState)(nil), // 4: raft_serverpb.RaftTruncatedState
-	(*RegionLocalState)(nil),   // 5: raft_serverpb.RegionLocalState
-	(*StoreIdent)(nil),         // 6: raft_serverpb.StoreIdent
-	(*KeyValue)(nil),           // 7: raft_serverpb.KeyValue
-	(*RaftSnapshotData)(nil),   // 8: raft_serverpb.RaftSnapshotData
-	(*Done)(nil),               // 9: raft_serverpb.Done
-	(*metapb.Peer)(nil),        // 10: metapb.Peer
-	(*raftpb.Message)(nil),     // 11: raftpb.Message
-	(*metapb.RegionEpoch)(nil), // 12: metapb.RegionEpoch
-	(*raftpb.HardState)(nil),   // 13: raftpb.HardState
-	(*metapb.Region)(nil),      // 14: metapb.Region
+	(*RaftMessage)(nil),      // 0: raft_serverpb.RaftMessage
+	(*KeyValue)(nil),         // 1: raft_serverpb.KeyValue
+	(*RaftSnapshotData)(nil), // 2: raft_serverpb.RaftSnapshotData
+	(*Done)(nil),             // 3: raft_serverpb.Done
+	(*raftpb.Message)(nil),   // 4: raftpb.Message
 }
 var file_raft_serverpb_proto_depIdxs = []int32{
-	10, // 0: raft_serverpb.RaftMessage.from_peer:type_name -> metapb.Peer
-	10, // 1: raft_serverpb.RaftMessage.to_peer:type_name -> metapb.Peer
-	11, // 2: raft_serverpb.RaftMessage.message:type_name -> raftpb.Message
-	12, // 3: raft_serverpb.RaftMessage.region_epoch:type_name -> metapb.RegionEpoch
-	13, // 4: raft_serverpb.RaftLocalState.hard_state:type_name -> raftpb.HardState
-	4,  // 5: raft_serverpb.RaftApplyState.truncated_state:type_name -> raft_serverpb.RaftTruncatedState
-	0,  // 6: raft_serverpb.RegionLocalState.state:type_name -> raft_serverpb.PeerState
-	14, // 7: raft_serverpb.RegionLocalState.region:type_name -> metapb.Region
-	14, // 8: raft_serverpb.RaftSnapshotData.region:type_name -> metapb.Region
-	7,  // 9: raft_serverpb.RaftSnapshotData.data:type_name -> raft_serverpb.KeyValue
-	1,  // 10: raft_serverpb.RaftService.Raft:input_type -> raft_serverpb.RaftMessage
-	9,  // 11: raft_serverpb.RaftService.Raft:output_type -> raft_serverpb.Done
-	11, // [11:12] is the sub-list for method output_type
-	10, // [10:11] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	4, // 0: raft_serverpb.RaftMessage.message:type_name -> raftpb.Message
+	1, // 1: raft_serverpb.RaftSnapshotData.data:type_name -> raft_serverpb.KeyValue
+	0, // 2: raft_serverpb.RaftService.Raft:input_type -> raft_serverpb.RaftMessage
+	3, // 3: raft_serverpb.RaftService.Raft:output_type -> raft_serverpb.Done
+	3, // [3:4] is the sub-list for method output_type
+	2, // [2:3] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_raft_serverpb_proto_init() }
@@ -683,14 +256,13 @@ func file_raft_serverpb_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_raft_serverpb_proto_rawDesc), len(file_raft_serverpb_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   9,
+			NumEnums:      0,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_raft_serverpb_proto_goTypes,
 		DependencyIndexes: file_raft_serverpb_proto_depIdxs,
-		EnumInfos:         file_raft_serverpb_proto_enumTypes,
 		MessageInfos:      file_raft_serverpb_proto_msgTypes,
 	}.Build()
 	File_raft_serverpb_proto = out.File
