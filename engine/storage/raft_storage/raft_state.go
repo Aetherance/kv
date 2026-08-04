@@ -13,7 +13,7 @@ import (
 	"github.com/Aetherance/kv/raft"
 )
 
-var _ raft.Storage = (*raftStateStorage)(nil)
+var _ raft.PersistentState = (*raftStateStorage)(nil)
 
 type applyFunc func(txn *badger.Txn, index uint64, data []byte) error
 

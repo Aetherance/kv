@@ -22,34 +22,30 @@ import (
 	pb "github.com/Aetherance/kv/proto/pkg/raftpb"
 )
 
-// ErrCompacted is returned by Storage.Entries/Compact when a requested
-// index is unavailable because it predates the last snapshot.
+// ErrCompacted means the requested entry predates the latest snapshot.
 var ErrCompacted = errors.New("requested index is unavailable due to compaction")
 
-// ErrSnapOutOfDate is returned by Storage.CreateSnapshot when a requested
-// index is older than the existing snapshot.
+// ErrSnapOutOfDate means a snapshot is not newer than the current snapshot.
 var ErrSnapOutOfDate = errors.New("requested index is older than the existing snapshot")
 
-// ErrUnavailable is returned by Storage interface when the requested log entries
-// are unavailable.
+// ErrUnavailable means the requested log entry is not present.
 var ErrUnavailable = errors.New("requested entry at index is unavailable")
 
-// ErrSnapshotTemporarilyUnavailable is returned by the Storage interface when the required
-// snapshot is temporarily unavailable.
+// ErrSnapshotTemporarilyUnavailable means a snapshot cannot be returned yet.
 var ErrSnapshotTemporarilyUnavailable = errors.New("snapshot is temporarily unavailable")
 
-// Storage is an interface that may be implemented by the application
-// to retrieve log entries from storage.
+// PersistentState gives Raft read access to protocol state that has already
+// been persisted: HardState, membership, log entries, and snapshots. It is not
+// an application data store. The Ready consumer remains responsible for
+// persisting newly produced state before calling Advance.
 //
-// If any Storage method returns an error, the raft instance will
+// If any PersistentState method returns an error, the raft instance will
 // become inoperable and refuse to participate in elections; the
 // application is responsible for cleanup and recovery in this case.
-type Storage interface {
+type PersistentState interface {
 	// InitialState returns the saved HardState and ConfState information.
 	InitialState() (*pb.HardState, *pb.ConfState, error)
 	// Entries returns a slice of log entries in the range [lo,hi).
-	// MaxSize limits the total size of the log entries returned, but
-	// Entries returns at least one entry if any.
 	Entries(lo, hi uint64) ([]*pb.Entry, error)
 	// Term returns the term of entry i, which must be in the range
 	// [FirstIndex()-1, LastIndex()]. The term of the entry before
@@ -60,20 +56,22 @@ type Storage interface {
 	LastIndex() (uint64, error)
 	// FirstIndex returns the index of the first log entry that is
 	// possibly available via Entries (older entries have been incorporated
-	// into the latest Snapshot; if storage only contains the dummy entry the
+	// into the latest Snapshot; if the state only contains the dummy entry the
 	// first log entry is not available).
 	FirstIndex() (uint64, error)
 	// Snapshot returns the most recent snapshot.
 	// If snapshot is temporarily unavailable, it should return ErrSnapshotTemporarilyUnavailable,
-	// so raft state machine could know that Storage needs some time to prepare
+	// so the Raft state machine knows that PersistentState needs time to prepare the
 	// snapshot and call Snapshot later.
 	Snapshot() (*pb.Snapshot, error)
 }
 
-// MemoryStorage implements the Storage interface backed by an
-// in-memory array.
-type MemoryStorage struct {
-	// Protects access to all fields. Most methods of MemoryStorage are
+var _ PersistentState = (*MemoryState)(nil)
+
+// MemoryState is an in-memory PersistentState implementation for tests and
+// ephemeral Raft nodes.
+type MemoryState struct {
+	// Protects access to all fields. Most methods of MemoryState are
 	// run on the raft goroutine, but Append() is run on an application
 	// goroutine.
 	sync.Mutex
@@ -84,9 +82,9 @@ type MemoryStorage struct {
 	ents []*pb.Entry
 }
 
-// NewMemoryStorage creates an empty MemoryStorage.
-func NewMemoryStorage() *MemoryStorage {
-	return &MemoryStorage{
+// NewMemoryState creates an empty MemoryState.
+func NewMemoryState() *MemoryState {
+	return &MemoryState{
 		// When starting from scratch populate the list with a dummy entry at term zero.
 		ents:      []*pb.Entry{{}},
 		hardState: &pb.HardState{},
@@ -94,8 +92,8 @@ func NewMemoryStorage() *MemoryStorage {
 	}
 }
 
-// InitialState implements the Storage interface.
-func (ms *MemoryStorage) InitialState() (*pb.HardState, *pb.ConfState, error) {
+// InitialState implements the PersistentState interface.
+func (ms *MemoryState) InitialState() (*pb.HardState, *pb.ConfState, error) {
 	hs := ms.hardState
 	if hs == nil {
 		hs = &pb.HardState{}
@@ -104,15 +102,15 @@ func (ms *MemoryStorage) InitialState() (*pb.HardState, *pb.ConfState, error) {
 }
 
 // SetHardState saves the current HardState.
-func (ms *MemoryStorage) SetHardState(st *pb.HardState) error {
+func (ms *MemoryState) SetHardState(st *pb.HardState) error {
 	ms.Lock()
 	defer ms.Unlock()
 	ms.hardState = st
 	return nil
 }
 
-// Entries implements the Storage interface.
-func (ms *MemoryStorage) Entries(lo, hi uint64) ([]*pb.Entry, error) {
+// Entries implements the PersistentState interface.
+func (ms *MemoryState) Entries(lo, hi uint64) ([]*pb.Entry, error) {
 	ms.Lock()
 	defer ms.Unlock()
 	offset := ms.ents[0].Index
@@ -131,8 +129,8 @@ func (ms *MemoryStorage) Entries(lo, hi uint64) ([]*pb.Entry, error) {
 	return ents, nil
 }
 
-// Term implements the Storage interface.
-func (ms *MemoryStorage) Term(i uint64) (uint64, error) {
+// Term implements the PersistentState interface.
+func (ms *MemoryState) Term(i uint64) (uint64, error) {
 	ms.Lock()
 	defer ms.Unlock()
 	offset := ms.ents[0].Index
@@ -145,38 +143,38 @@ func (ms *MemoryStorage) Term(i uint64) (uint64, error) {
 	return ms.ents[i-offset].Term, nil
 }
 
-// LastIndex implements the Storage interface.
-func (ms *MemoryStorage) LastIndex() (uint64, error) {
+// LastIndex implements the PersistentState interface.
+func (ms *MemoryState) LastIndex() (uint64, error) {
 	ms.Lock()
 	defer ms.Unlock()
 	return ms.lastIndex(), nil
 }
 
-func (ms *MemoryStorage) lastIndex() uint64 {
+func (ms *MemoryState) lastIndex() uint64 {
 	return ms.ents[0].Index + uint64(len(ms.ents)) - 1
 }
 
-// FirstIndex implements the Storage interface.
-func (ms *MemoryStorage) FirstIndex() (uint64, error) {
+// FirstIndex implements the PersistentState interface.
+func (ms *MemoryState) FirstIndex() (uint64, error) {
 	ms.Lock()
 	defer ms.Unlock()
 	return ms.firstIndex(), nil
 }
 
-func (ms *MemoryStorage) firstIndex() uint64 {
+func (ms *MemoryState) firstIndex() uint64 {
 	return ms.ents[0].Index + 1
 }
 
-// Snapshot implements the Storage interface.
-func (ms *MemoryStorage) Snapshot() (*pb.Snapshot, error) {
+// Snapshot implements the PersistentState interface.
+func (ms *MemoryState) Snapshot() (*pb.Snapshot, error) {
 	ms.Lock()
 	defer ms.Unlock()
 	return ms.snapshot, nil
 }
 
-// ApplySnapshot overwrites the contents of this Storage object with
+// ApplySnapshot overwrites the contents of this MemoryState with
 // those of the given snapshot.
-func (ms *MemoryStorage) ApplySnapshot(snap *pb.Snapshot) error {
+func (ms *MemoryState) ApplySnapshot(snap *pb.Snapshot) error {
 	ms.Lock()
 	defer ms.Unlock()
 
@@ -196,7 +194,7 @@ func (ms *MemoryStorage) ApplySnapshot(snap *pb.Snapshot) error {
 // can be used to reconstruct the state at that point.
 // If any configuration changes have been made since the last compaction,
 // the result of the last ApplyConfChange must be passed in.
-func (ms *MemoryStorage) CreateSnapshot(i uint64, cs *pb.ConfState, data []byte) (*pb.Snapshot, error) {
+func (ms *MemoryState) CreateSnapshot(i uint64, cs *pb.ConfState, data []byte) (*pb.Snapshot, error) {
 	ms.Lock()
 	defer ms.Unlock()
 	if i <= ms.snapshot.Metadata.Index {
@@ -220,7 +218,7 @@ func (ms *MemoryStorage) CreateSnapshot(i uint64, cs *pb.ConfState, data []byte)
 // Compact discards all log entries prior to compactIndex.
 // It is the application's responsibility to not attempt to compact an index
 // greater than raftLog.applied.
-func (ms *MemoryStorage) Compact(compactIndex uint64) error {
+func (ms *MemoryState) Compact(compactIndex uint64) error {
 	ms.Lock()
 	defer ms.Unlock()
 	offset := ms.ents[0].Index
@@ -239,10 +237,10 @@ func (ms *MemoryStorage) Compact(compactIndex uint64) error {
 	return nil
 }
 
-// Append the new entries to storage.
+// Append adds entries to this MemoryState.
 // TODO (xiangli): ensure the entries are continuous and
 // entries[0].Index > ms.entries[0].Index
-func (ms *MemoryStorage) Append(entries []*pb.Entry) error {
+func (ms *MemoryState) Append(entries []*pb.Entry) error {
 	if len(entries) == 0 {
 		return nil
 	}

@@ -25,16 +25,16 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// returns a new MemoryStorage with only ents filled
-func newMemoryStorageWithEnts(ents []*pb.Entry) *MemoryStorage {
-	return &MemoryStorage{
+// returns a new MemoryState with only ents filled
+func newMemoryStateWithEnts(ents []*pb.Entry) *MemoryState {
+	return &MemoryState{
 		ents:     ents,
 		snapshot: &pb.Snapshot{Metadata: &pb.SnapshotMetadata{ConfState: &pb.ConfState{}}},
 	}
 }
 
 // nextEnts returns the appliable entries and updates the applied index
-func nextEnts(r *Raft, s *MemoryStorage) (ents []*pb.Entry) {
+func nextEnts(r *Raft, s *MemoryState) (ents []*pb.Entry) {
 	// Transfer all unstable entries to "stable" storage.
 	s.Append(r.RaftLog.unstableEntries())
 	r.RaftLog.stabled = r.RaftLog.LastIndex()
@@ -93,7 +93,7 @@ func readyEqual(a, b Ready) bool {
 }
 
 func TestProgressLeader2AB(t *testing.T) {
-	r := newTestRaft(1, []uint64{1, 2}, 5, 1, NewMemoryStorage())
+	r := newTestRaft(1, []uint64{1, 2}, 5, 1, NewMemoryState())
 	r.becomeCandidate()
 	r.becomeLeader()
 
@@ -229,7 +229,7 @@ func TestVoteFromAnyState2AA(t *testing.T) {
 	vt := pb.MessageType_MsgRequestVote
 	vt_resp := pb.MessageType_MsgRequestVoteResponse
 	for st := StateType(0); st <= StateLeader; st++ {
-		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 		r.Term = 1
 
 		switch st {
@@ -416,9 +416,9 @@ func TestCommitWithHeartbeat2AB(t *testing.T) {
 }
 
 func TestDuelingCandidates2AB(t *testing.T) {
-	a := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
-	b := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
-	c := newTestRaft(3, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+	a := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
+	b := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
+	c := newTestRaft(3, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 
 	nt := newNetwork(a, b, c)
 	nt.cut(1, 3)
@@ -445,7 +445,7 @@ func TestDuelingCandidates2AB(t *testing.T) {
 	// 3 will be follower again since both 1 and 2 rejects its vote request since 3 does not have a long enough log
 	nt.send(&pb.Message{From: 3, To: 3, MsgType: pb.MessageType_MsgHup})
 
-	wlog := newLog(newMemoryStorageWithEnts([]*pb.Entry{{}, {Data: nil, Term: 1, Index: 1}}))
+	wlog := newLog(newMemoryStateWithEnts([]*pb.Entry{{}, {Data: nil, Term: 1, Index: 1}}))
 	wlog.committed = 1
 	tests := []struct {
 		sm      *Raft
@@ -455,7 +455,7 @@ func TestDuelingCandidates2AB(t *testing.T) {
 	}{
 		{a, StateFollower, 2, wlog},
 		{b, StateFollower, 2, wlog},
-		{c, StateFollower, 2, newLog(NewMemoryStorage())},
+		{c, StateFollower, 2, newLog(NewMemoryState())},
 	}
 
 	for i, tt := range tests {
@@ -502,7 +502,7 @@ func TestCandidateConcede2AB(t *testing.T) {
 	if g := a.Term; g != 1 {
 		t.Errorf("term = %d, want %d", g, 1)
 	}
-	wlog := newLog(newMemoryStorageWithEnts([]*pb.Entry{{}, {Data: nil, Term: 1, Index: 1}, {Term: 1, Index: 2, Data: data}}))
+	wlog := newLog(newMemoryStateWithEnts([]*pb.Entry{{}, {Data: nil, Term: 1, Index: 1}, {Term: 1, Index: 2, Data: data}}))
 	wlog.committed = 2
 	wantLog := ltoa(wlog)
 	for i, p := range tt.peers {
@@ -539,7 +539,7 @@ func TestOldMessages2AB(t *testing.T) {
 	tt.send(&pb.Message{From: 1, To: 1, MsgType: pb.MessageType_MsgPropose, Entries: []*pb.Entry{{Data: []byte("somedata")}}})
 
 	ilog := newLog(
-		newMemoryStorageWithEnts([]*pb.Entry{
+		newMemoryStateWithEnts([]*pb.Entry{
 			{}, {Data: nil, Term: 1, Index: 1},
 			{Data: nil, Term: 2, Index: 2}, {Data: nil, Term: 3, Index: 3},
 			{Data: []byte("somedata"), Term: 3, Index: 4},
@@ -577,9 +577,9 @@ func TestProposal2AB(t *testing.T) {
 		tt.send(&pb.Message{From: 1, To: 1, MsgType: pb.MessageType_MsgHup})
 		tt.send(&pb.Message{From: 1, To: 1, MsgType: pb.MessageType_MsgPropose, Entries: []*pb.Entry{{Data: data}}})
 
-		wantLog := newLog(NewMemoryStorage())
+		wantLog := newLog(NewMemoryState())
 		if tt.success {
-			wantLog = newLog(newMemoryStorageWithEnts([]*pb.Entry{{}, {Data: nil, Term: 1, Index: 1}, {Term: 1, Index: 2, Data: data}}))
+			wantLog = newLog(newMemoryStateWithEnts([]*pb.Entry{{}, {Data: nil, Term: 1, Index: 1}, {Term: 1, Index: 2, Data: data}}))
 			wantLog.committed = 2
 		}
 		base := ltoa(wantLog)
@@ -629,7 +629,7 @@ func TestHandleMessageType_MsgAppend2AB(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		storage := NewMemoryStorage()
+		storage := NewMemoryState()
 		storage.Append([]*pb.Entry{{Index: 1, Term: 1}, {Index: 2, Term: 2}})
 		sm := newTestRaft(1, []uint64{1}, 10, 1, storage)
 		sm.becomeFollower(2, None)
@@ -695,10 +695,10 @@ func TestRecvMessageType_MsgRequestVote2AB(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		sm := newTestRaft(1, []uint64{1, 2}, 10, 1, NewMemoryStorage())
+		sm := newTestRaft(1, []uint64{1, 2}, 10, 1, NewMemoryState())
 		sm.State = tt.state
 		sm.Vote = tt.voteFor
-		sm.RaftLog = newLog(newMemoryStorageWithEnts([]*pb.Entry{{}, {Index: 1, Term: 2}, {Index: 2, Term: 2}}))
+		sm.RaftLog = newLog(newMemoryStateWithEnts([]*pb.Entry{{}, {Index: 1, Term: 2}, {Index: 2, Term: 2}}))
 
 		// raft.Term is greater than or equal to raft.RaftLog.lastTerm. In this
 		// test we're only testing MessageType_MsgRequestVote responses when the campaigning node
@@ -747,7 +747,7 @@ func TestAllServerStepdown2AB(t *testing.T) {
 	tterm := uint64(3)
 
 	for i, tt := range tests {
-		sm := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+		sm := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 		switch tt.state {
 		case StateFollower:
 			sm.becomeFollower(1, None)
@@ -796,9 +796,9 @@ func TestCandidateResetTermMessageType_MsgAppend2AA(t *testing.T) {
 // MessageType_MsgHeartbeat or MessageType_MsgAppend from leader, "Step" resets the term
 // with leader's and reverts back to follower.
 func testCandidateResetTerm(t *testing.T, mt pb.MessageType) {
-	a := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
-	b := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
-	c := newTestRaft(3, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+	a := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
+	b := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
+	c := newTestRaft(3, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 
 	nt := newNetwork(a, b, c)
 
@@ -852,9 +852,9 @@ func testCandidateResetTerm(t *testing.T, mt pb.MessageType) {
 // candiate's response to late leader heartbeat forces the leader
 // to step down.
 func TestDisruptiveFollower2AA(t *testing.T) {
-	n1 := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
-	n2 := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
-	n3 := newTestRaft(3, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+	n1 := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
+	n2 := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
+	n3 := newTestRaft(3, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 
 	n1.becomeFollower(1, None)
 	n2.becomeFollower(1, None)
@@ -948,9 +948,9 @@ func TestHeartbeatUpdateCommit2AB(t *testing.T) {
 		{5, 10},
 	}
 	for i, tt := range tests {
-		sm1 := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
-		sm2 := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
-		sm3 := newTestRaft(3, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+		sm1 := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
+		sm2 := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
+		sm3 := newTestRaft(3, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 		nt := newNetwork(sm1, sm2, sm3)
 		nt.send(&pb.Message{From: 1, To: 1, MsgType: pb.MessageType_MsgHup})
 		nt.isolate(1)
@@ -996,8 +996,8 @@ func TestRecvMessageType_MsgBeat2AA(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		sm := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
-		sm.RaftLog = newLog(newMemoryStorageWithEnts([]*pb.Entry{{}, {Index: 1, Term: 0}, {Index: 2, Term: 1}}))
+		sm := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
+		sm.RaftLog = newLog(newMemoryStateWithEnts([]*pb.Entry{{}, {Index: 1, Term: 0}, {Index: 2, Term: 1}}))
 		sm.Term = 1
 		sm.State = tt.state
 		sm.Step(&pb.Message{From: 1, To: 1, MsgType: pb.MessageType_MsgBeat})
@@ -1019,7 +1019,7 @@ func TestLeaderIncreaseNext2AB(t *testing.T) {
 	// previous entries + noop entry + propose + 1
 	wnext := uint64(len(previousEnts)) + 1 + 1 + 1
 
-	storage := NewMemoryStorage()
+	storage := NewMemoryState()
 	storage.Append(previousEnts)
 	sm := newTestRaft(1, []uint64{1, 2}, 10, 1, storage)
 	nt := newNetwork(sm, nil, nil)
@@ -1042,7 +1042,7 @@ func TestRestoreSnapshot2C(t *testing.T) {
 		},
 	}
 
-	storage := NewMemoryStorage()
+	storage := NewMemoryState()
 	sm := newTestRaft(1, []uint64{1, 2}, 10, 1, storage)
 	sm.handleSnapshot(&pb.Message{Snapshot: &s})
 
@@ -1060,7 +1060,7 @@ func TestRestoreSnapshot2C(t *testing.T) {
 
 func TestRestoreIgnoreSnapshot2C(t *testing.T) {
 	previousEnts := []*pb.Entry{{Term: 1, Index: 1}, {Term: 1, Index: 2}, {Term: 1, Index: 3}}
-	storage := NewMemoryStorage()
+	storage := NewMemoryState()
 	storage.Append(previousEnts)
 	sm := newTestRaft(1, []uint64{1, 2}, 10, 1, storage)
 	sm.RaftLog.committed = 3
@@ -1091,7 +1091,7 @@ func TestProvideSnap2C(t *testing.T) {
 			ConfState: &pb.ConfState{Nodes: []uint64{1, 2}},
 		},
 	}
-	storage := NewMemoryStorage()
+	storage := NewMemoryState()
 	sm := newTestRaft(1, []uint64{1}, 10, 1, storage)
 	sm.handleSnapshot(&pb.Message{Snapshot: &s})
 
@@ -1123,7 +1123,7 @@ func TestRestoreFromSnapMsg2C(t *testing.T) {
 	}
 	m := &pb.Message{MsgType: pb.MessageType_MsgSnapshot, From: 1, Term: 2, Snapshot: &s}
 
-	sm := newTestRaft(2, []uint64{1, 2}, 10, 1, NewMemoryStorage())
+	sm := newTestRaft(2, []uint64{1, 2}, 10, 1, NewMemoryState())
 	sm.Step(m)
 
 	if sm.Lead != uint64(1) {
@@ -1141,7 +1141,7 @@ func TestRestoreFromSnapWithOverlapingPeersMsg2C(t *testing.T) {
 	}
 	m := &pb.Message{MsgType: pb.MessageType_MsgSnapshot, From: 1, Term: 2, Snapshot: &s}
 
-	sm := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+	sm := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 	sm.Step(m)
 
 	if sm.Lead != uint64(1) {
@@ -1192,7 +1192,7 @@ func TestSlowNodeRestore2C(t *testing.T) {
 }
 
 func TestCampaignWhileLeader2AA(t *testing.T) {
-	cfg := newTestConfig(1, []uint64{1}, 5, 1, NewMemoryStorage())
+	cfg := newTestConfig(1, []uint64{1}, 5, 1, NewMemoryState())
 	r := newRaft(cfg)
 	if r.State != StateFollower {
 		t.Errorf("expected new node to be follower but got %s", r.State)
@@ -1216,9 +1216,9 @@ func TestCampaignWhileLeader2AA(t *testing.T) {
 // TestSplitVote verifies that after split vote, cluster can complete
 // election in next round.
 func TestSplitVote2AA(t *testing.T) {
-	n1 := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
-	n2 := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
-	n3 := newTestRaft(3, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+	n1 := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
+	n2 := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
+	n3 := newTestRaft(3, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 
 	n1.becomeFollower(1, None)
 	n2.becomeFollower(1, None)
@@ -1287,7 +1287,7 @@ func TestSplitVote2AA(t *testing.T) {
 }
 
 func entsWithConfig(configFunc func(*Config), id uint64, terms ...uint64) *Raft {
-	storage := NewMemoryStorage()
+	storage := NewMemoryState()
 	for i, term := range terms {
 		storage.Append([]*pb.Entry{{Index: uint64(i + 1), Term: term}})
 	}
@@ -1304,7 +1304,7 @@ func entsWithConfig(configFunc func(*Config), id uint64, terms ...uint64) *Raft 
 // to the given value but no log entries (indicating that it voted in
 // the given term but has not received any logs).
 func votedWithConfig(configFunc func(*Config), id, vote, term uint64) *Raft {
-	storage := NewMemoryStorage()
+	storage := NewMemoryState()
 	storage.SetHardState(&pb.HardState{Vote: vote, Term: term})
 	cfg := newTestConfig(id, []uint64{}, 5, 1, storage)
 	if configFunc != nil {
@@ -1317,7 +1317,7 @@ func votedWithConfig(configFunc func(*Config), id, vote, term uint64) *Raft {
 
 type network struct {
 	peers   map[uint64]stateMachine
-	storage map[uint64]*MemoryStorage
+	storage map[uint64]*MemoryState
 	dropm   map[connem]float64
 	ignorem map[pb.MessageType]bool
 
@@ -1341,13 +1341,13 @@ func newNetworkWithConfig(configFunc func(*Config), peers ...stateMachine) *netw
 	peerAddrs := idsBySize(size)
 
 	npeers := make(map[uint64]stateMachine, size)
-	nstorage := make(map[uint64]*MemoryStorage, size)
+	nstorage := make(map[uint64]*MemoryState, size)
 
 	for j, p := range peers {
 		id := peerAddrs[j]
 		switch v := p.(type) {
 		case nil:
-			nstorage[id] = NewMemoryStorage()
+			nstorage[id] = NewMemoryState()
 			cfg := newTestConfig(id, peerAddrs, 10, 1, nstorage[id])
 			if configFunc != nil {
 				configFunc(cfg)
@@ -1453,16 +1453,16 @@ func idsBySize(size int) []uint64 {
 	return ids
 }
 
-func newTestConfig(id uint64, peers []uint64, election, heartbeat int, storage Storage) *Config {
+func newTestConfig(id uint64, peers []uint64, election, heartbeat int, storage PersistentState) *Config {
 	return &Config{
-		ID:            id,
-		peers:         peers,
-		ElectionTick:  election,
-		HeartbeatTick: heartbeat,
-		Storage:       storage,
+		ID:              id,
+		peers:           peers,
+		ElectionTick:    election,
+		HeartbeatTick:   heartbeat,
+		PersistentState: storage,
 	}
 }
 
-func newTestRaft(id uint64, peers []uint64, election, heartbeat int, storage Storage) *Raft {
+func newTestRaft(id uint64, peers []uint64, election, heartbeat int, storage PersistentState) *Raft {
 	return newRaft(newTestConfig(id, peers, election, heartbeat, storage))
 }

@@ -49,7 +49,7 @@ func TestLeaderUpdateTermFromMessage2AA(t *testing.T) {
 // it immediately reverts to follower state.
 // Reference: section 5.1
 func testUpdateTermFromMessage(t *testing.T, state StateType) {
-	r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+	r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 	switch state {
 	case StateFollower:
 		r.becomeFollower(1, 2)
@@ -73,7 +73,7 @@ func testUpdateTermFromMessage(t *testing.T, state StateType) {
 // TestStartAsFollower tests that when servers start up, they begin as followers.
 // Reference: section 5.2
 func TestStartAsFollower2AA(t *testing.T) {
-	r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+	r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 	if r.State != StateFollower {
 		t.Errorf("state = %s, want %s", r.State, StateFollower)
 	}
@@ -86,7 +86,7 @@ func TestStartAsFollower2AA(t *testing.T) {
 func TestLeaderBcastBeat2AA(t *testing.T) {
 	// heartbeat interval
 	hi := 1
-	r := newTestRaft(1, []uint64{1, 2, 3}, 10, hi, NewMemoryStorage())
+	r := newTestRaft(1, []uint64{1, 2, 3}, 10, hi, NewMemoryState())
 	r.becomeCandidate()
 	r.becomeLeader()
 
@@ -128,7 +128,7 @@ func TestCandidateStartNewElection2AA(t *testing.T) {
 func testNonleaderStartElection(t *testing.T, state StateType) {
 	// election timeout
 	et := 10
-	r := newTestRaft(1, []uint64{1, 2, 3}, et, 1, NewMemoryStorage())
+	r := newTestRaft(1, []uint64{1, 2, 3}, et, 1, NewMemoryState())
 	switch state {
 	case StateFollower:
 		r.becomeFollower(1, 2)
@@ -187,7 +187,7 @@ func TestLeaderElectionInOneRoundRPC2AA(t *testing.T) {
 		{5, map[uint64]bool{}, StateCandidate},
 	}
 	for i, tt := range tests {
-		r := newTestRaft(1, idsBySize(tt.size), 10, 1, NewMemoryStorage())
+		r := newTestRaft(1, idsBySize(tt.size), 10, 1, NewMemoryState())
 
 		r.Step(&pb.Message{From: 1, To: 1, MsgType: pb.MessageType_MsgHup})
 		for id, vote := range tt.votes {
@@ -220,7 +220,7 @@ func TestFollowerVote2AA(t *testing.T) {
 		{2, 1, true},
 	}
 	for i, tt := range tests {
-		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 		r.Term = 1
 		r.Vote = tt.vote
 
@@ -247,7 +247,7 @@ func TestCandidateFallback2AA(t *testing.T) {
 		{From: 2, To: 1, Term: 2, MsgType: pb.MessageType_MsgAppend},
 	}
 	for i, tt := range tests {
-		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 		r.Step(&pb.Message{From: 1, To: 1, MsgType: pb.MessageType_MsgHup})
 		if r.State != StateCandidate {
 			t.Fatalf("unexpected state = %s, want %s", r.State, StateCandidate)
@@ -276,7 +276,7 @@ func TestCandidateElectionTimeoutRandomized2AA(t *testing.T) {
 // Reference: section 5.2
 func testNonleaderElectionTimeoutRandomized(t *testing.T, state StateType) {
 	et := 10
-	r := newTestRaft(1, []uint64{1, 2, 3}, et, 1, NewMemoryStorage())
+	r := newTestRaft(1, []uint64{1, 2, 3}, et, 1, NewMemoryState())
 	timeouts := make(map[int]bool)
 	for round := 0; round < 50*et; round++ {
 		switch state {
@@ -318,7 +318,7 @@ func testNonleadersElectionTimeoutNonconflict(t *testing.T, state StateType) {
 	rs := make([]*Raft, size)
 	ids := idsBySize(size)
 	for k := range rs {
-		rs[k] = newTestRaft(ids[k], ids, et, 1, NewMemoryStorage())
+		rs[k] = newTestRaft(ids[k], ids, et, 1, NewMemoryState())
 	}
 	conflicts := 0
 	for round := 0; round < 1000; round++ {
@@ -360,7 +360,7 @@ func testNonleadersElectionTimeoutNonconflict(t *testing.T, state StateType) {
 // Also, it writes the new entry into stable storage.
 // Reference: section 5.3
 func TestLeaderStartReplication2AB(t *testing.T) {
-	s := NewMemoryStorage()
+	s := NewMemoryState()
 	r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, s)
 	r.becomeCandidate()
 	r.becomeLeader()
@@ -400,7 +400,7 @@ func TestLeaderStartReplication2AB(t *testing.T) {
 // servers eventually find out.
 // Reference: section 5.3
 func TestLeaderCommitEntry2AB(t *testing.T) {
-	s := NewMemoryStorage()
+	s := NewMemoryState()
 	r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, s)
 	r.becomeCandidate()
 	r.becomeLeader()
@@ -454,7 +454,7 @@ func TestLeaderAcknowledgeCommit2AB(t *testing.T) {
 		{5, map[uint64]bool{2: true, 3: true, 4: true, 5: true}, true},
 	}
 	for i, tt := range tests {
-		s := NewMemoryStorage()
+		s := NewMemoryState()
 		r := newTestRaft(1, idsBySize(tt.size), 10, 1, s)
 		r.becomeCandidate()
 		r.becomeLeader()
@@ -487,7 +487,7 @@ func TestLeaderCommitPrecedingEntries2AB(t *testing.T) {
 		{{Term: 1, Index: 1}},
 	}
 	for i, tt := range tests {
-		storage := NewMemoryStorage()
+		storage := NewMemoryState()
 		storage.Append(tt)
 		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, storage)
 		r.Term = 2
@@ -544,7 +544,7 @@ func TestFollowerCommitEntry2AB(t *testing.T) {
 		},
 	}
 	for i, tt := range tests {
-		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 		r.becomeFollower(1, 2)
 
 		r.Step(&pb.Message{From: 2, To: 1, MsgType: pb.MessageType_MsgAppend, Term: 1, Entries: tt.ents, Commit: tt.commit})
@@ -586,7 +586,7 @@ func TestFollowerCheckMessageType_MsgAppend2AB(t *testing.T) {
 		{ents[1].Term + 1, ents[1].Index + 1, true},
 	}
 	for i, tt := range tests {
-		storage := NewMemoryStorage()
+		storage := NewMemoryState()
 		storage.Append(ents)
 		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, storage)
 		r.RaftLog.committed = 1
@@ -647,7 +647,7 @@ func TestFollowerAppendEntries2AB(t *testing.T) {
 		},
 	}
 	for i, tt := range tests {
-		storage := NewMemoryStorage()
+		storage := NewMemoryState()
 		storage.Append([]*pb.Entry{{Term: 1, Index: 1}, {Term: 2, Index: 2}})
 		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, storage)
 		r.becomeFollower(2, 2)
@@ -727,12 +727,12 @@ func TestLeaderSyncFollowerLog2AB(t *testing.T) {
 		},
 	}
 	for i, tt := range tests {
-		leadStorage := NewMemoryStorage()
+		leadStorage := NewMemoryState()
 		leadStorage.Append(ents)
 		lead := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, leadStorage)
 		lead.Term = term
 		lead.RaftLog.committed = lead.RaftLog.LastIndex()
-		followerStorage := NewMemoryStorage()
+		followerStorage := NewMemoryState()
 		followerStorage.Append(tt)
 		follower := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, followerStorage)
 		follower.Term = term - 1
@@ -765,7 +765,7 @@ func TestVoteRequest2AB(t *testing.T) {
 		{[]*pb.Entry{{Term: 1, Index: 1}, {Term: 2, Index: 2}}, 3},
 	}
 	for j, tt := range tests {
-		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 		r.Step(&pb.Message{
 			From: 2, To: 1, MsgType: pb.MessageType_MsgAppend, Term: tt.wterm - 1, LogTerm: 0, Index: 0, Entries: tt.ents,
 		})
@@ -826,7 +826,7 @@ func TestVoter2AB(t *testing.T) {
 		{[]*pb.Entry{{Term: 2, Index: 1}, {Term: 1, Index: 2}}, 1, 1, true},
 	}
 	for i, tt := range tests {
-		storage := NewMemoryStorage()
+		storage := NewMemoryState()
 		storage.Append(tt.ents)
 		r := newTestRaft(1, []uint64{1, 2}, 10, 1, storage)
 
@@ -862,7 +862,7 @@ func TestLeaderOnlyCommitsLogFromCurrentTerm2AB(t *testing.T) {
 		{3, 3},
 	}
 	for i, tt := range tests {
-		storage := NewMemoryStorage()
+		storage := NewMemoryState()
 		storage.Append(ents)
 		r := newTestRaft(1, []uint64{1, 2}, 10, 1, storage)
 		r.Term = 2
@@ -886,7 +886,7 @@ func (s messageSlice) Len() int           { return len(s) }
 func (s messageSlice) Less(i, j int) bool { return fmt.Sprint(s[i]) < fmt.Sprint(s[j]) }
 func (s messageSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
-func commitNoopEntry(r *Raft, s *MemoryStorage) {
+func commitNoopEntry(r *Raft, s *MemoryState) {
 	if r.State != StateLeader {
 		panic("it should only be used when it is the leader")
 	}

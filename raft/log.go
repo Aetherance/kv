@@ -25,8 +25,8 @@ import pb "github.com/Aetherance/kv/proto/pkg/raftpb"
 // for simplify the RaftLog implement should manage all log entries
 // that not truncated
 type RaftLog struct {
-	// storage contains all stable entries since the last snapshot.
-	storage Storage
+	// state exposes entries that were stable before the current Ready batch.
+	state PersistentState
 
 	// committed is the highest log position that is known to be in
 	// stable storage on a quorum of nodes.
@@ -52,31 +52,31 @@ type RaftLog struct {
 	// Your Data Here (2A).
 }
 
-// newLog returns log using the given storage. It recovers the log
+// newLog returns a log recovered from the given persistent state.
 // to the state that it just commits and applies the latest snapshot.
-func newLog(storage Storage) *RaftLog {
-	if storage == nil {
+func newLog(state PersistentState) *RaftLog {
+	if state == nil {
 		return nil
 	}
 
-	hs, _, _ := storage.InitialState()
-	first, _ := storage.FirstIndex()
-	last, _ := storage.LastIndex()
+	hs, _, _ := state.InitialState()
+	first, _ := state.FirstIndex()
+	last, _ := state.LastIndex()
 
 	entries := make([]*pb.Entry, 0)
-	dummyTerm, _ := storage.Term(first - 1)
+	dummyTerm, _ := state.Term(first - 1)
 	dummy := &pb.Entry{
 		Index: first - 1,
 		Term:  dummyTerm,
 	}
 	entries = append(entries, dummy)
 	if first <= last {
-		stored, _ := storage.Entries(first, last+1)
+		stored, _ := state.Entries(first, last+1)
 		entries = append(entries, stored...)
 	}
 
 	return &RaftLog{
-		storage:   storage,
+		state:     state,
 		stabled:   last,
 		applied:   entries[0].Index,
 		committed: hs.Commit,
@@ -88,7 +88,7 @@ func newLog(storage Storage) *RaftLog {
 // storage compact stabled log entries prevent the log entries
 // grow unlimitedly in memory
 func (l *RaftLog) maybeCompact() {
-	first, err := l.storage.FirstIndex()
+	first, err := l.state.FirstIndex()
 	if err != nil {
 		return
 	}
@@ -96,7 +96,7 @@ func (l *RaftLog) maybeCompact() {
 		return
 	}
 	compactIndex := first - 1
-	term, err := l.storage.Term(compactIndex)
+	term, err := l.state.Term(compactIndex)
 	if err != nil {
 		return
 	}

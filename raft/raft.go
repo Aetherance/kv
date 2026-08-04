@@ -70,11 +70,10 @@ type Config struct {
 	// leadership every HeartbeatTick ticks.
 	HeartbeatTick int
 
-	// Storage is the storage for raft. raft generates entries and states to be
-	// stored in storage. raft reads the persisted entries and states out of
-	// Storage when it needs. raft reads out the previous state and configuration
-	// out of storage when restarting.
-	Storage Storage
+	// PersistentState provides the protocol state recovered before this Raft
+	// instance starts. The Ready consumer owns persistence of newly produced
+	// entries, HardState, and snapshots.
+	PersistentState PersistentState
 	// Applied is the last applied index. It should only be set when restarting
 	// raft. raft will not return entries to the application smaller or equal to
 	// Applied. If Applied is unset when restarting, raft might return previous
@@ -95,8 +94,8 @@ func (c *Config) validate() error {
 		return errors.New("election tick must be greater than heartbeat tick")
 	}
 
-	if c.Storage == nil {
-		return errors.New("storage cannot be nil")
+	if c.PersistentState == nil {
+		return errors.New("persistent state cannot be nil")
 	}
 
 	return nil
@@ -174,7 +173,7 @@ func newRaft(c *Config) *Raft {
 	}
 
 	randElectionTimeout := c.ElectionTick + rand.Intn(c.ElectionTick)
-	hs, cs, _ := c.Storage.InitialState()
+	hs, cs, _ := c.PersistentState.InitialState()
 
 	if len(prs) == 0 {
 		for _, id := range cs.Nodes {
@@ -182,7 +181,7 @@ func newRaft(c *Config) *Raft {
 		}
 	}
 
-	raftLog := newLog(c.Storage)
+	raftLog := newLog(c.PersistentState)
 	if c.Applied > 0 {
 		if c.Applied < raftLog.entries[0].Index || c.Applied > raftLog.committed {
 			panic("applied index is outside the committed raft log")
@@ -637,7 +636,7 @@ func (r *Raft) handleSnapshot(m *pb.Message) {
 }
 
 func (r *Raft) sendSnapshot(to uint64) {
-	snapshot, err := r.RaftLog.storage.Snapshot()
+	snapshot, err := r.RaftLog.state.Snapshot()
 	if err == ErrSnapshotTemporarilyUnavailable {
 		return
 	}

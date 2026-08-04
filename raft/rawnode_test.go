@@ -24,7 +24,7 @@ import (
 // TestRawNodeStart ensures that a node can be started correctly, and can accept and commit
 // proposals.
 func TestRawNodeStart2AC(t *testing.T) {
-	storage := NewMemoryStorage()
+	storage := NewMemoryState()
 	rawNode, err := NewRawNode(newTestConfig(1, []uint64{1}, 10, 1, storage))
 	if err != nil {
 		t.Fatal(err)
@@ -63,7 +63,7 @@ func TestRawNodeRestart2AC(t *testing.T) {
 		CommittedEntries: entries[:st.Commit],
 	}
 
-	storage := NewMemoryStorage()
+	storage := NewMemoryState()
 	storage.SetHardState(&st)
 	storage.Append(entries)
 	rawNode, err := NewRawNode(newTestConfig(1, nil, 10, 1, storage))
@@ -99,7 +99,7 @@ func TestRawNodeRestartFromSnapshot2C(t *testing.T) {
 		CommittedEntries: entries,
 	}
 
-	s := NewMemoryStorage()
+	s := NewMemoryState()
 	s.SetHardState(&st)
 	s.ApplySnapshot(&snap)
 	s.Append(entries)
