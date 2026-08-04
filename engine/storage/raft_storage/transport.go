@@ -9,7 +9,9 @@ import (
 
 	"github.com/Aetherance/kv/engine/config"
 	"github.com/Aetherance/kv/log"
+	"github.com/Aetherance/kv/proto/pkg/metapb"
 	rspb "github.com/Aetherance/kv/proto/pkg/raft_serverpb"
+	"github.com/Aetherance/kv/proto/pkg/raftpb"
 )
 
 // raftConn is a pooled gRPC client stream to one store.
@@ -17,6 +19,7 @@ type raftConn struct {
 	streamMu sync.Mutex
 	stream   grpc.ClientStreamingClient[rspb.RaftMessage, rspb.Done]
 	cancel   context.CancelFunc
+	client   *grpc.ClientConn
 }
 
 func newRaftConn(addr string) (*raftConn, error) {
@@ -31,7 +34,7 @@ func newRaftConn(addr string) (*raftConn, error) {
 		_ = cc.Close()
 		return nil, err
 	}
-	return &raftConn{stream: stream, cancel: cancel}, nil
+	return &raftConn{stream: stream, cancel: cancel, client: cc}, nil
 }
 
 func (c *raftConn) Send(msg *rspb.RaftMessage) error {
@@ -42,11 +45,11 @@ func (c *raftConn) Send(msg *rspb.RaftMessage) error {
 
 func (c *raftConn) Stop() {
 	c.cancel()
+	_ = c.client.Close()
 }
 
-// ServerTransport implements raftstore.Transport. Store addresses are resolved
-// from the static cluster config (no scheduler), and connections are pooled by
-// store id.
+// ServerTransport is the fixed-topology network adapter outside raftruntime.
+// Connections are resolved by the raw Raft destination ID and pooled.
 type ServerTransport struct {
 	cfg *config.Config
 	mu  sync.RWMutex
@@ -61,8 +64,11 @@ func NewServerTransport(cfg *config.Config) *ServerTransport {
 	}
 }
 
-func (t *ServerTransport) Send(msg *rspb.RaftMessage) error {
-	storeID := msg.GetToPeer().GetStoreId()
+func (t *ServerTransport) Send(message *raftpb.Message) error {
+	if message == nil {
+		return nil
+	}
+	storeID := message.To
 	addr, ok := t.cfg.Peers[storeID]
 	if !ok {
 		log.Errorf("no address for store %d, drop message", storeID)
@@ -72,7 +78,12 @@ func (t *ServerTransport) Send(msg *rspb.RaftMessage) error {
 	if err != nil {
 		return err
 	}
-	if err := conn.Send(msg); err != nil {
+	envelope := &rspb.RaftMessage{
+		FromPeer: &metapb.Peer{Id: message.From, StoreId: message.From},
+		ToPeer:   &metapb.Peer{Id: message.To, StoreId: message.To},
+		Message:  message,
+	}
+	if err := conn.Send(envelope); err != nil {
 		// Drop the broken connection so the next send reconnects.
 		t.mu.Lock()
 		if t.conns[storeID] == conn {

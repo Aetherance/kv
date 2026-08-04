@@ -168,9 +168,17 @@ func newRaft(c *Config) *Raft {
 		}
 	}
 
+	raftLog := newLog(c.Storage)
+	if c.Applied > 0 {
+		if c.Applied < raftLog.entries[0].Index || c.Applied > raftLog.committed {
+			panic("applied index is outside the committed raft log")
+		}
+		raftLog.applied = c.Applied
+	}
+
 	return &Raft{
 		id:                    c.ID,
-		RaftLog:               newLog(c.Storage),
+		RaftLog:               raftLog,
 		Prs:                   prs,
 		State:                 StateFollower,
 		Term:                  hs.Term,
