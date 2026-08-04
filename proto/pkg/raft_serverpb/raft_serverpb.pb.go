@@ -22,50 +22,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type RaftMessage struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Message       *raftpb.Message        `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RaftMessage) Reset() {
-	*x = RaftMessage{}
-	mi := &file_raft_serverpb_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RaftMessage) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RaftMessage) ProtoMessage() {}
-
-func (x *RaftMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_serverpb_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RaftMessage.ProtoReflect.Descriptor instead.
-func (*RaftMessage) Descriptor() ([]byte, []int) {
-	return file_raft_serverpb_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *RaftMessage) GetMessage() *raftpb.Message {
-	if x != nil {
-		return x.Message
-	}
-	return nil
-}
-
 type KeyValue struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Key           []byte                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
@@ -76,7 +32,7 @@ type KeyValue struct {
 
 func (x *KeyValue) Reset() {
 	*x = KeyValue{}
-	mi := &file_raft_serverpb_proto_msgTypes[1]
+	mi := &file_raft_serverpb_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -88,7 +44,7 @@ func (x *KeyValue) String() string {
 func (*KeyValue) ProtoMessage() {}
 
 func (x *KeyValue) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_serverpb_proto_msgTypes[1]
+	mi := &file_raft_serverpb_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -101,7 +57,7 @@ func (x *KeyValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyValue.ProtoReflect.Descriptor instead.
 func (*KeyValue) Descriptor() ([]byte, []int) {
-	return file_raft_serverpb_proto_rawDescGZIP(), []int{1}
+	return file_raft_serverpb_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *KeyValue) GetKey() []byte {
@@ -127,7 +83,7 @@ type RaftSnapshotData struct {
 
 func (x *RaftSnapshotData) Reset() {
 	*x = RaftSnapshotData{}
-	mi := &file_raft_serverpb_proto_msgTypes[2]
+	mi := &file_raft_serverpb_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -139,7 +95,7 @@ func (x *RaftSnapshotData) String() string {
 func (*RaftSnapshotData) ProtoMessage() {}
 
 func (x *RaftSnapshotData) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_serverpb_proto_msgTypes[2]
+	mi := &file_raft_serverpb_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -152,7 +108,7 @@ func (x *RaftSnapshotData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RaftSnapshotData.ProtoReflect.Descriptor instead.
 func (*RaftSnapshotData) Descriptor() ([]byte, []int) {
-	return file_raft_serverpb_proto_rawDescGZIP(), []int{2}
+	return file_raft_serverpb_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RaftSnapshotData) GetData() []*KeyValue {
@@ -170,7 +126,7 @@ type Done struct {
 
 func (x *Done) Reset() {
 	*x = Done{}
-	mi := &file_raft_serverpb_proto_msgTypes[3]
+	mi := &file_raft_serverpb_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -182,7 +138,7 @@ func (x *Done) String() string {
 func (*Done) ProtoMessage() {}
 
 func (x *Done) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_serverpb_proto_msgTypes[3]
+	mi := &file_raft_serverpb_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -195,24 +151,22 @@ func (x *Done) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Done.ProtoReflect.Descriptor instead.
 func (*Done) Descriptor() ([]byte, []int) {
-	return file_raft_serverpb_proto_rawDescGZIP(), []int{3}
+	return file_raft_serverpb_proto_rawDescGZIP(), []int{2}
 }
 
 var File_raft_serverpb_proto protoreflect.FileDescriptor
 
 const file_raft_serverpb_proto_rawDesc = "" +
 	"\n" +
-	"\x13raft_serverpb.proto\x12\rraft_serverpb\x1a\fraftpb.proto\"\xb1\x01\n" +
-	"\vRaftMessage\x12)\n" +
-	"\amessage\x18\x04 \x01(\v2\x0f.raftpb.MessageR\amessageJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tR\tregion_idR\tfrom_peerR\ato_peerR\fregion_epochR\fis_tombstoneR\tstart_keyR\aend_key\"2\n" +
+	"\x13raft_serverpb.proto\x12\rraft_serverpb\x1a\fraftpb.proto\"2\n" +
 	"\bKeyValue\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\fR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\fR\x05value\"j\n" +
 	"\x10RaftSnapshotData\x12+\n" +
 	"\x04data\x18\x03 \x03(\v2\x17.raft_serverpb.KeyValueR\x04dataJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x05\x10\x06R\x06regionR\tfile_sizeR\x04meta\"\x06\n" +
-	"\x04Done2J\n" +
-	"\vRaftService\x12;\n" +
-	"\x04Raft\x12\x1a.raft_serverpb.RaftMessage\x1a\x13.raft_serverpb.Done\"\x00(\x01B@Z>github.com/Aetherance/kv/proto/pkg/raft_serverpb;raft_serverpbb\x06proto3"
+	"\x04Done2?\n" +
+	"\vRaftService\x120\n" +
+	"\x04Raft\x12\x0f.raftpb.Message\x1a\x13.raft_serverpb.Done\"\x00(\x01B@Z>github.com/Aetherance/kv/proto/pkg/raft_serverpb;raft_serverpbb\x06proto3"
 
 var (
 	file_raft_serverpb_proto_rawDescOnce sync.Once
@@ -226,24 +180,22 @@ func file_raft_serverpb_proto_rawDescGZIP() []byte {
 	return file_raft_serverpb_proto_rawDescData
 }
 
-var file_raft_serverpb_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_raft_serverpb_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_raft_serverpb_proto_goTypes = []any{
-	(*RaftMessage)(nil),      // 0: raft_serverpb.RaftMessage
-	(*KeyValue)(nil),         // 1: raft_serverpb.KeyValue
-	(*RaftSnapshotData)(nil), // 2: raft_serverpb.RaftSnapshotData
-	(*Done)(nil),             // 3: raft_serverpb.Done
-	(*raftpb.Message)(nil),   // 4: raftpb.Message
+	(*KeyValue)(nil),         // 0: raft_serverpb.KeyValue
+	(*RaftSnapshotData)(nil), // 1: raft_serverpb.RaftSnapshotData
+	(*Done)(nil),             // 2: raft_serverpb.Done
+	(*raftpb.Message)(nil),   // 3: raftpb.Message
 }
 var file_raft_serverpb_proto_depIdxs = []int32{
-	4, // 0: raft_serverpb.RaftMessage.message:type_name -> raftpb.Message
-	1, // 1: raft_serverpb.RaftSnapshotData.data:type_name -> raft_serverpb.KeyValue
-	0, // 2: raft_serverpb.RaftService.Raft:input_type -> raft_serverpb.RaftMessage
-	3, // 3: raft_serverpb.RaftService.Raft:output_type -> raft_serverpb.Done
-	3, // [3:4] is the sub-list for method output_type
-	2, // [2:3] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	0, // 0: raft_serverpb.RaftSnapshotData.data:type_name -> raft_serverpb.KeyValue
+	3, // 1: raft_serverpb.RaftService.Raft:input_type -> raftpb.Message
+	2, // 2: raft_serverpb.RaftService.Raft:output_type -> raft_serverpb.Done
+	2, // [2:3] is the sub-list for method output_type
+	1, // [1:2] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_raft_serverpb_proto_init() }
@@ -257,7 +209,7 @@ func file_raft_serverpb_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_raft_serverpb_proto_rawDesc), len(file_raft_serverpb_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

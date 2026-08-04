@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 
 	badger "github.com/dgraph-io/badger/v4"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/Aetherance/kv/engine/config"
 	"github.com/Aetherance/kv/engine/storage"
@@ -210,14 +211,13 @@ func (rs *RaftStorage) Stop() error {
 // Raft receives raw Raft messages from another store.
 func (rs *RaftStorage) Raft(stream rspb.RaftService_RaftServer) error {
 	for {
-		envelope, err := stream.Recv()
+		message, err := stream.Recv()
 		if err == io.EOF {
 			return stream.SendAndClose(&rspb.Done{})
 		}
 		if err != nil {
 			return err
 		}
-		message := envelope.GetMessage()
 		if message == nil {
 			continue
 		}
@@ -231,7 +231,7 @@ func (rs *RaftStorage) Raft(stream rspb.RaftService_RaftServer) error {
 }
 
 func (rs *RaftStorage) propose(request *raft_cmdpb.RaftCmdRequest) error {
-	payload, err := request.Marshal()
+	payload, err := proto.Marshal(request)
 	if err != nil {
 		return err
 	}
@@ -256,7 +256,7 @@ func (rs *RaftStorage) applyCommand(txn *badger.Txn, _ uint64, data []byte) erro
 		return err
 	}
 	request := new(raft_cmdpb.RaftCmdRequest)
-	if err := request.Unmarshal(payload); err != nil {
+	if err := proto.Unmarshal(payload, request); err != nil {
 		return err
 	}
 
@@ -364,12 +364,12 @@ func captureKVSnapshot(txn *badger.Txn) ([]byte, error) {
 		}
 		iterator.Close()
 	}
-	return snapshot.Marshal()
+	return proto.Marshal(snapshot)
 }
 
 func restoreKVSnapshot(txn *badger.Txn, data []byte) error {
 	snapshot := new(rspb.RaftSnapshotData)
-	if err := snapshot.Unmarshal(data); err != nil {
+	if err := proto.Unmarshal(data, snapshot); err != nil {
 		return err
 	}
 	for _, cf := range engine_util.CFs {
