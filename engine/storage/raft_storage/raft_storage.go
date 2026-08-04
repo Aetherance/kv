@@ -51,13 +51,11 @@ type RaftStorage struct {
 
 	config *config.Config
 	db     *badger.DB
-	engine *raftruntime.BadgerEngine
 
-	runtime   *raftruntime.Runtime
 	runner    *raftruntime.Runner
 	transport *ServerTransport
 	cancel    context.CancelFunc
-	runDone   chan error
+	runDone   chan struct{}
 
 	sequence  atomic.Uint64
 	pendingMu sync.Mutex
@@ -154,8 +152,6 @@ func (rs *RaftStorage) Start() error {
 		cleanup()
 		return err
 	}
-	rs.engine = engine
-
 	rawNode, err := raft.NewRawNode(&raft.Config{
 		ID:            rs.config.StoreID,
 		ElectionTick:  rs.config.RaftElectionTimeoutTicks,
@@ -169,20 +165,20 @@ func (rs *RaftStorage) Start() error {
 	}
 
 	rs.transport = NewServerTransport(rs.config)
-	rs.runtime = raftruntime.New(rawNode, engine, rs.applyCommand, raftruntime.Config{
+	runtime := raftruntime.New(rawNode, engine, rs.applyCommand, raftruntime.Config{
 		CompactThreshold: rs.config.RaftLogGcCountLimit,
 		Send:             rs.sendMessages,
 		Applied:          rs.onApplied,
 		StateChanged:     rs.onStateChanged,
 	})
-	rs.runner = raftruntime.NewRunner(rs.runtime, rs.config.RaftBaseTickInterval)
+	rs.runner = raftruntime.NewRunner(runtime, rs.config.RaftBaseTickInterval)
 	runCtx, cancel := context.WithCancel(context.Background())
 	rs.cancel = cancel
-	rs.runDone = make(chan error, 1)
+	rs.runDone = make(chan struct{})
 	go func() {
-		err := rs.runner.Run(runCtx)
+		defer close(rs.runDone)
+		_ = rs.runner.Run(runCtx)
 		rs.failPending(raftruntime.ErrStopped)
-		rs.runDone <- err
 	}()
 	rs.started = true
 
@@ -227,7 +223,6 @@ func (rs *RaftStorage) Stop() error {
 	if runDone != nil {
 		<-runDone
 	}
-	rs.failPending(raftruntime.ErrStopped)
 	if db != nil {
 		return db.Close()
 	}
@@ -329,9 +324,7 @@ func (rs *RaftStorage) onApplied(entries []raftruntime.Applied) {
 			continue
 		}
 		response := new(raft_cmdpb.RaftCmdResponse)
-		if err == nil {
-			err = proto.Unmarshal(entry.Result, response)
-		}
+		err = proto.Unmarshal(entry.Result, response)
 		rs.completePending(id.sequence, proposalResult{response: response, err: err})
 	}
 }
