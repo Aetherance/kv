@@ -2,13 +2,13 @@ package raft_storage
 
 import (
 	"context"
+	"log"
 	"sync"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/Aetherance/kv/engine/config"
-	"github.com/Aetherance/kv/log"
 	"github.com/Aetherance/kv/proto/pkg/metapb"
 	rspb "github.com/Aetherance/kv/proto/pkg/raft_serverpb"
 	"github.com/Aetherance/kv/proto/pkg/raftpb"
@@ -71,7 +71,7 @@ func (t *ServerTransport) Send(message *raftpb.Message) error {
 	storeID := message.To
 	addr, ok := t.cfg.Peers[storeID]
 	if !ok {
-		log.Errorf("no address for store %d, drop message", storeID)
+		log.Printf("no address for store %d, drop message", storeID)
 		return nil
 	}
 	conn, err := t.getConn(storeID, addr)

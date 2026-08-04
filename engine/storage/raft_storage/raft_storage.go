@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -18,7 +19,6 @@ import (
 	"github.com/Aetherance/kv/engine/raftruntime"
 	"github.com/Aetherance/kv/engine/storage"
 	engine_util "github.com/Aetherance/kv/engine/util"
-	"github.com/Aetherance/kv/log"
 	"github.com/Aetherance/kv/proto/pkg/raft_cmdpb"
 	rspb "github.com/Aetherance/kv/proto/pkg/raft_serverpb"
 	"github.com/Aetherance/kv/proto/pkg/raftpb"
@@ -338,7 +338,7 @@ func (rs *RaftStorage) onStateChanged(state raft.SoftState) {
 func (rs *RaftStorage) sendMessages(messages []*raftpb.Message) {
 	for _, message := range messages {
 		if err := rs.transport.Send(message); err != nil {
-			log.Errorf("send raft message %s from %d to %d: %v", message.MsgType, message.From, message.To, err)
+			log.Printf("send raft message %s from %d to %d: %v", message.MsgType, message.From, message.To, err)
 		}
 	}
 }
