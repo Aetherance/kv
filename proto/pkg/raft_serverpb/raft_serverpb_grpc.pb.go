@@ -8,6 +8,7 @@ package raft_serverpb
 
 import (
 	context "context"
+	raftpb "github.com/Aetherance/kv/proto/pkg/raftpb"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -26,7 +27,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type RaftServiceClient interface {
-	Raft(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[RaftMessage, Done], error)
+	Raft(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[raftpb.Message, Done], error)
 }
 
 type raftServiceClient struct {
@@ -37,24 +38,24 @@ func NewRaftServiceClient(cc grpc.ClientConnInterface) RaftServiceClient {
 	return &raftServiceClient{cc}
 }
 
-func (c *raftServiceClient) Raft(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[RaftMessage, Done], error) {
+func (c *raftServiceClient) Raft(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[raftpb.Message, Done], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &RaftService_ServiceDesc.Streams[0], RaftService_Raft_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[RaftMessage, Done]{ClientStream: stream}
+	x := &grpc.GenericClientStream[raftpb.Message, Done]{ClientStream: stream}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type RaftService_RaftClient = grpc.ClientStreamingClient[RaftMessage, Done]
+type RaftService_RaftClient = grpc.ClientStreamingClient[raftpb.Message, Done]
 
 // RaftServiceServer is the server API for RaftService service.
 // All implementations must embed UnimplementedRaftServiceServer
 // for forward compatibility.
 type RaftServiceServer interface {
-	Raft(grpc.ClientStreamingServer[RaftMessage, Done]) error
+	Raft(grpc.ClientStreamingServer[raftpb.Message, Done]) error
 	mustEmbedUnimplementedRaftServiceServer()
 }
 
@@ -65,7 +66,7 @@ type RaftServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedRaftServiceServer struct{}
 
-func (UnimplementedRaftServiceServer) Raft(grpc.ClientStreamingServer[RaftMessage, Done]) error {
+func (UnimplementedRaftServiceServer) Raft(grpc.ClientStreamingServer[raftpb.Message, Done]) error {
 	return status.Error(codes.Unimplemented, "method Raft not implemented")
 }
 func (UnimplementedRaftServiceServer) mustEmbedUnimplementedRaftServiceServer() {}
@@ -90,11 +91,11 @@ func RegisterRaftServiceServer(s grpc.ServiceRegistrar, srv RaftServiceServer) {
 }
 
 func _RaftService_Raft_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(RaftServiceServer).Raft(&grpc.GenericServerStream[RaftMessage, Done]{ServerStream: stream})
+	return srv.(RaftServiceServer).Raft(&grpc.GenericServerStream[raftpb.Message, Done]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type RaftService_RaftServer = grpc.ClientStreamingServer[RaftMessage, Done]
+type RaftService_RaftServer = grpc.ClientStreamingServer[raftpb.Message, Done]
 
 // RaftService_ServiceDesc is the grpc.ServiceDesc for RaftService service.
 // It's only intended for direct use with grpc.RegisterService,

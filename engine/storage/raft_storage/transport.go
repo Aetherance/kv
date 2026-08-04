@@ -16,7 +16,7 @@ import (
 // raftConn is a pooled gRPC client stream to one store.
 type raftConn struct {
 	streamMu sync.Mutex
-	stream   grpc.ClientStreamingClient[rspb.RaftMessage, rspb.Done]
+	stream   grpc.ClientStreamingClient[raftpb.Message, rspb.Done]
 	cancel   context.CancelFunc
 	client   *grpc.ClientConn
 }
@@ -36,7 +36,7 @@ func newRaftConn(addr string) (*raftConn, error) {
 	return &raftConn{stream: stream, cancel: cancel, client: cc}, nil
 }
 
-func (c *raftConn) Send(msg *rspb.RaftMessage) error {
+func (c *raftConn) Send(msg *raftpb.Message) error {
 	c.streamMu.Lock()
 	defer c.streamMu.Unlock()
 	return c.stream.Send(msg)
@@ -76,8 +76,7 @@ func (t *ServerTransport) Send(message *raftpb.Message) error {
 	if err != nil {
 		return err
 	}
-	envelope := &rspb.RaftMessage{Message: message}
-	if err := conn.Send(envelope); err != nil {
+	if err := conn.Send(message); err != nil {
 		// Drop the broken connection so the next send reconnects.
 		t.mu.Lock()
 		if t.conns[storeID] == conn {
