@@ -17,9 +17,8 @@ type Config struct {
 	RaftHeartbeatTicks       int
 	RaftLogGcCountLimit      uint64
 
-	// Runtime tick intervals.
-	RaftBaseTickInterval  time.Duration
-	RaftLogGCTickInterval time.Duration
+	// Runtime tick interval.
+	RaftBaseTickInterval time.Duration
 }
 
 // NewDefaultConfig returns a Config with sane raft defaults. Caller fills in
@@ -29,7 +28,6 @@ func NewDefaultConfig() *Config {
 		RaftBaseTickInterval:     100 * time.Millisecond,
 		RaftHeartbeatTicks:       2,
 		RaftElectionTimeoutTicks: 10,
-		RaftLogGCTickInterval:    10 * time.Second,
 		RaftLogGcCountLimit:      128000,
 	}
 }
