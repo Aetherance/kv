@@ -1,4 +1,4 @@
-package raftruntime
+package raft_storage
 
 import (
 	"encoding/binary"
@@ -13,14 +13,13 @@ import (
 	"github.com/Aetherance/kv/raft"
 )
 
-var _ raft.Storage = (*BadgerEngine)(nil)
+var _ raft.Storage = (*raftStateStorage)(nil)
 
-// BadgerEngine is a namespace-bound durable Raft log and state-machine
-// checkpoint. It has no knowledge of what the namespace represents.
-type BadgerEngine struct {
-	db          *badger.DB
-	prefix      []byte
-	snapshotter Snapshotter
+type applyFunc func(txn *badger.Txn, index uint64, data []byte) error
+
+// raftStateStorage keeps the durable state for this Raft-backed KV.
+type raftStateStorage struct {
+	db *badger.DB
 
 	hardState    *raftpb.HardState
 	confState    *raftpb.ConfState
@@ -39,40 +38,36 @@ var (
 	logSuffix         = []byte("log/")
 )
 
-func OpenBadgerEngine(db *badger.DB, prefix []byte, initialPeers []uint64, snapshotter Snapshotter) (*BadgerEngine, error) {
+func openRaftStateStorage(db *badger.DB, initialPeers []uint64) (*raftStateStorage, error) {
 	if db == nil {
-		return nil, errors.New("raftruntime: nil badger database")
+		return nil, errors.New("raft storage: nil badger database")
 	}
-	engine := &BadgerEngine{
-		db:          db,
-		prefix:      append([]byte(nil), prefix...),
-		snapshotter: snapshotter,
-	}
-	if err := engine.loadOrBootstrap(initialPeers); err != nil {
+	state := &raftStateStorage{db: db}
+	if err := state.loadOrBootstrap(initialPeers); err != nil {
 		return nil, err
 	}
-	if engine.appliedIndex > engine.hardState.Commit {
-		return nil, fmt.Errorf("raftruntime: applied index %d exceeds commit index %d", engine.appliedIndex, engine.hardState.Commit)
+	if state.appliedIndex > state.hardState.Commit {
+		return nil, fmt.Errorf("raft storage: applied index %d exceeds commit index %d", state.appliedIndex, state.hardState.Commit)
 	}
-	if engine.hardState.Commit > engine.lastIndex {
-		return nil, fmt.Errorf("raftruntime: commit index %d exceeds last index %d", engine.hardState.Commit, engine.lastIndex)
+	if state.hardState.Commit > state.lastIndex {
+		return nil, fmt.Errorf("raft storage: commit index %d exceeds last index %d", state.hardState.Commit, state.lastIndex)
 	}
-	return engine, nil
+	return state, nil
 }
 
-func (e *BadgerEngine) InitialState() (*raftpb.HardState, *raftpb.ConfState, error) {
+func (e *raftStateStorage) InitialState() (*raftpb.HardState, *raftpb.ConfState, error) {
 	return cloneHardState(e.hardState), cloneConfState(e.confState), nil
 }
 
-func (e *BadgerEngine) Entries(low, high uint64) ([]*raftpb.Entry, error) {
+func (e *raftStateStorage) Entries(low, high uint64) ([]*raftpb.Entry, error) {
 	if low > high {
-		return nil, fmt.Errorf("raftruntime: entries low %d exceeds high %d", low, high)
+		return nil, fmt.Errorf("raft storage: entries low %d exceeds high %d", low, high)
 	}
 	if low <= e.snapshot.Metadata.Index {
 		return nil, raft.ErrCompacted
 	}
 	if high > e.lastIndex+1 {
-		return nil, fmt.Errorf("raftruntime: entries high %d exceeds last index %d", high, e.lastIndex)
+		return nil, fmt.Errorf("raft storage: entries high %d exceeds last index %d", high, e.lastIndex)
 	}
 	if low == high {
 		return nil, nil
@@ -103,7 +98,7 @@ func (e *BadgerEngine) Entries(low, high uint64) ([]*raftpb.Entry, error) {
 	return entries, err
 }
 
-func (e *BadgerEngine) Term(index uint64) (uint64, error) {
+func (e *raftStateStorage) Term(index uint64) (uint64, error) {
 	snapshotIndex := e.snapshot.Metadata.Index
 	if index < snapshotIndex {
 		return 0, raft.ErrCompacted
@@ -121,26 +116,26 @@ func (e *BadgerEngine) Term(index uint64) (uint64, error) {
 	return entries[0].Term, nil
 }
 
-func (e *BadgerEngine) LastIndex() (uint64, error) { return e.lastIndex, nil }
+func (e *raftStateStorage) LastIndex() (uint64, error) { return e.lastIndex, nil }
 
-func (e *BadgerEngine) FirstIndex() (uint64, error) {
+func (e *raftStateStorage) FirstIndex() (uint64, error) {
 	return e.snapshot.Metadata.Index + 1, nil
 }
 
-func (e *BadgerEngine) Snapshot() (*raftpb.Snapshot, error) {
+func (e *raftStateStorage) Snapshot() (*raftpb.Snapshot, error) {
 	if raft.IsEmptySnap(e.snapshot) {
 		return nil, raft.ErrSnapshotTemporarilyUnavailable
 	}
 	return cloneSnapshot(e.snapshot), nil
 }
 
-func (e *BadgerEngine) AppliedIndex() uint64 { return e.appliedIndex }
+func (e *raftStateStorage) applied() uint64 { return e.appliedIndex }
 
-// Persist saves all unstable Raft state before any dependent message is sent.
+// persist saves all unstable Raft state before any dependent message is sent.
 // Snapshot installation is included so a successful return is crash-recoverable.
-func (e *BadgerEngine) Persist(ready *raft.Ready) error {
+func (e *raftStateStorage) persist(ready *raft.Ready) error {
 	if ready == nil {
-		return errors.New("raftruntime: nil ready")
+		return errors.New("raft storage: nil ready")
 	}
 
 	nextHard := cloneHardState(e.hardState)
@@ -155,10 +150,7 @@ func (e *BadgerEngine) Persist(ready *raft.Ready) error {
 			if snapshot.Metadata.Index <= nextSnapshot.Metadata.Index {
 				return raft.ErrSnapOutOfDate
 			}
-			if e.snapshotter.Restore == nil {
-				return errors.New("raftruntime: received snapshot without a restore function")
-			}
-			if err := e.snapshotter.Restore(txn, snapshot.Data); err != nil {
+			if err := restoreKVSnapshot(txn, snapshot.Data); err != nil {
 				return err
 			}
 			if err := e.deleteAllLogs(txn); err != nil {
@@ -222,27 +214,24 @@ func (e *BadgerEngine) Persist(ready *raft.Ready) error {
 	return nil
 }
 
-func (e *BadgerEngine) Apply(index uint64, data []byte, apply ApplyFunc) ([]byte, error) {
+func (e *raftStateStorage) apply(index uint64, data []byte, apply applyFunc) error {
 	if err := e.checkNextApplied(index); err != nil {
-		return nil, err
+		return err
 	}
-	var result []byte
 	err := e.db.Update(func(txn *badger.Txn) error {
-		var err error
-		result, err = apply(txn, index, data)
-		if err != nil {
+		if err := apply(txn, index, data); err != nil {
 			return err
 		}
 		return setUint64(txn, e.key(appliedSuffix), index)
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	e.appliedIndex = index
-	return result, nil
+	return nil
 }
 
-func (e *BadgerEngine) MarkApplied(index uint64) error {
+func (e *raftStateStorage) markApplied(index uint64) error {
 	if err := e.checkNextApplied(index); err != nil {
 		return err
 	}
@@ -255,7 +244,7 @@ func (e *BadgerEngine) MarkApplied(index uint64) error {
 	return nil
 }
 
-func (e *BadgerEngine) ApplyConfChange(index uint64, state *raftpb.ConfState) error {
+func (e *raftStateStorage) applyConfChange(index uint64, state *raftpb.ConfState) error {
 	if err := e.checkNextApplied(index); err != nil {
 		return err
 	}
@@ -273,8 +262,8 @@ func (e *BadgerEngine) ApplyConfChange(index uint64, state *raftpb.ConfState) er
 	return nil
 }
 
-func (e *BadgerEngine) MaybeCompact(threshold uint64) error {
-	if threshold == 0 || e.snapshotter.Capture == nil {
+func (e *raftStateStorage) maybeCompact(threshold uint64) error {
+	if threshold == 0 {
 		return nil
 	}
 	if e.appliedIndex <= e.snapshot.Metadata.Index || e.appliedIndex-e.snapshot.Metadata.Index < threshold {
@@ -289,7 +278,7 @@ func (e *BadgerEngine) MaybeCompact(threshold uint64) error {
 	var data []byte
 	if err := e.db.View(func(txn *badger.Txn) error {
 		var captureErr error
-		data, captureErr = e.snapshotter.Capture(txn)
+		data, captureErr = captureKVSnapshot(txn)
 		return captureErr
 	}); err != nil {
 		return err
@@ -320,14 +309,14 @@ func (e *BadgerEngine) MaybeCompact(threshold uint64) error {
 	return nil
 }
 
-func (e *BadgerEngine) checkNextApplied(index uint64) error {
+func (e *raftStateStorage) checkNextApplied(index uint64) error {
 	if index != e.appliedIndex+1 {
-		return fmt.Errorf("raftruntime: apply index %d is not after durable index %d", index, e.appliedIndex)
+		return fmt.Errorf("raft storage: apply index %d is not after durable index %d", index, e.appliedIndex)
 	}
 	return nil
 }
 
-func (e *BadgerEngine) loadOrBootstrap(initialPeers []uint64) error {
+func (e *raftStateStorage) loadOrBootstrap(initialPeers []uint64) error {
 	err := e.db.View(func(txn *badger.Txn) error {
 		_, err := txn.Get(e.key(initializedSuffix))
 		return err
@@ -337,11 +326,11 @@ func (e *BadgerEngine) loadOrBootstrap(initialPeers []uint64) error {
 		sort.Slice(peers, func(i, j int) bool { return peers[i] < peers[j] })
 		for i, peer := range peers {
 			if peer == 0 || (i > 0 && peer == peers[i-1]) {
-				return fmt.Errorf("raftruntime: invalid initial peers %v", initialPeers)
+				return fmt.Errorf("raft storage: invalid initial peers %v", initialPeers)
 			}
 		}
 		if len(peers) == 0 {
-			return errors.New("raftruntime: initial peers are required for a new namespace")
+			return errors.New("raft storage: initial peers are required for a new database")
 		}
 
 		e.hardState = &raftpb.HardState{}
@@ -392,7 +381,7 @@ func (e *BadgerEngine) loadOrBootstrap(initialPeers []uint64) error {
 	})
 }
 
-func (e *BadgerEngine) deleteAllLogs(txn *badger.Txn) error {
+func (e *raftStateStorage) deleteAllLogs(txn *badger.Txn) error {
 	prefix := e.key(logSuffix)
 	iterator := txn.NewIterator(badger.DefaultIteratorOptions)
 	defer iterator.Close()
@@ -404,13 +393,13 @@ func (e *BadgerEngine) deleteAllLogs(txn *badger.Txn) error {
 	return nil
 }
 
-func (e *BadgerEngine) key(suffix []byte) []byte {
-	key := make([]byte, 0, len(e.prefix)+len(suffix))
-	key = append(key, e.prefix...)
+func (e *raftStateStorage) key(suffix []byte) []byte {
+	key := make([]byte, 0, len(raftNamespace)+len(suffix))
+	key = append(key, raftNamespace...)
 	return append(key, suffix...)
 }
 
-func (e *BadgerEngine) logKey(index uint64) []byte {
+func (e *raftStateStorage) logKey(index uint64) []byte {
 	key := e.key(logSuffix)
 	var encoded [8]byte
 	binary.BigEndian.PutUint64(encoded[:], index)
@@ -453,7 +442,7 @@ func getUint64(txn *badger.Txn, key []byte) (uint64, error) {
 		return 0, err
 	}
 	if len(value) != 8 {
-		return 0, fmt.Errorf("raftruntime: invalid uint64 value %x", value)
+		return 0, fmt.Errorf("raft storage: invalid uint64 value %x", value)
 	}
 	return binary.BigEndian.Uint64(value), nil
 }

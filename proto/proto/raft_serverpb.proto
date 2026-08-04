@@ -2,84 +2,31 @@ syntax = "proto3";
 package raft_serverpb;
 
 import "raftpb.proto";
-import "metapb.proto";
 
 option go_package = "github.com/Aetherance/kv/proto/pkg/raft_serverpb;raft_serverpb";
 
-// The message sent between Raft peer, it wraps the raft meessage with some meta information.
 message RaftMessage {
-    reserved 7, 8;
-    reserved "start_key", "end_key";
+    reserved 1, 2, 3, 5, 6, 7, 8;
+    reserved "region_id", "from_peer", "to_peer", "region_epoch",
+             "is_tombstone", "start_key", "end_key";
 
-    uint64 region_id = 1;
-    metapb.Peer from_peer = 2;
-    metapb.Peer to_peer = 3;
     raftpb.Message message = 4;
-    metapb.RegionEpoch region_epoch = 5;
-    // true means to_peer is a tombstone peer and it should remove itself.
-    bool is_tombstone = 6;
 }
 
-// Used to store the persistent state for Raft, including the hard state for raft and the last index of the raft log.
-message RaftLocalState {
-    raftpb.HardState hard_state = 1;
-    uint64 last_index = 2;
-    uint64 last_term = 3;
-}
-
-// Used to store the persistent state for Raft state machine.
-message RaftApplyState {
-    // Record the applied index of the state machine to make sure
-    // not apply any index twice after restart.
-    uint64 applied_index = 1;
-    // Record the index and term of the last raft log that have been truncated. (Used in 2C)
-    RaftTruncatedState truncated_state = 2;
-}
-
-// The truncated state for Raft log compaction.
-message RaftTruncatedState {
-    uint64 index = 1;
-    uint64 term = 2;
-}
-
-// Used to store Region information and the corresponding Peer state on this Store.
-message RegionLocalState {
-    PeerState state = 1;
-    metapb.Region region = 2;
-}
-
-// Normal indicates that this Peer is normal;
-// Tombstone shows that this Peer has been removed from Region and cannot join in Raft Group.
-enum PeerState {
-    Normal = 0;
-    Tombstone = 2;
-}
-
-// The persistent identification for Store.
-// It used to recover the store id after restart.
-message StoreIdent {
-    uint64 cluster_id = 1;
-    uint64 store_id = 2;
-}
-
-// Snapshot sending and reciveing related messages.
-// Not included in the course scope.
 message KeyValue {
-    bytes key      = 1;
-    bytes value    = 2;
+    bytes key = 1;
+    bytes value = 2;
 }
 
 message RaftSnapshotData {
-    reserved 2, 5;
-    reserved "file_size", "meta";
+    reserved 1, 2, 5;
+    reserved "region", "file_size", "meta";
 
-    metapb.Region region = 1;
     repeated KeyValue data = 3;
 }
 
 message Done {}
 
-// RaftService transports Raft messages between stores.
 service RaftService {
     rpc Raft(stream RaftMessage) returns (Done) {}
 }

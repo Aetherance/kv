@@ -1,7 +1,9 @@
 package raft_storage
 
 import (
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/Aetherance/kv/engine/config"
 	"github.com/Aetherance/kv/engine/storage"
@@ -28,6 +30,9 @@ func TestSingleNodeWriteReadAndRestart(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	assertStoredValue(t, first, "value")
+	if first.state.snapshot.Metadata.Index == 0 {
+		t.Fatal("expected low compaction threshold to create a snapshot")
+	}
 	if err := first.Stop(); err != nil {
 		t.Fatalf("stop first instance: %v", err)
 	}
@@ -42,6 +47,46 @@ func TestSingleNodeWriteReadAndRestart(t *testing.T) {
 		}
 	})
 	assertStoredValue(t, second, "value")
+}
+
+func TestRejectedProposalDoesNotStopEventLoop(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.StoreID = 1
+	cfg.Peers = map[uint64]string{
+		1: "127.0.0.1:1",
+		2: "127.0.0.1:2",
+	}
+	cfg.DBPath = t.TempDir()
+	cfg.RaftBaseTickInterval = time.Hour
+
+	store := NewRaftStorage(cfg)
+	if err := store.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.Stop(); err != nil {
+			t.Errorf("stop: %v", err)
+		}
+	})
+
+	err := store.Write([]storage.Modify{{Data: storage.Put{
+		Cf: "default", Key: []byte("key"), Val: []byte("value"),
+	}}})
+	var notLeader *NotLeaderError
+	if !errors.As(err, &notLeader) {
+		t.Fatalf("expected NotLeaderError, got %v", err)
+	}
+	select {
+	case <-store.done:
+		t.Fatal("event loop stopped after rejecting a proposal")
+	default:
+	}
+	store.pendingMu.Lock()
+	pending := len(store.pending)
+	store.pendingMu.Unlock()
+	if pending != 0 {
+		t.Fatalf("rejected proposal left %d pending requests", pending)
+	}
 }
 
 func assertStoredValue(t *testing.T, store *RaftStorage, expected string) {

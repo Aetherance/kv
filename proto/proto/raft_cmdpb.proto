@@ -1,9 +1,6 @@
 syntax = "proto3";
 package raft_cmdpb;
 
-import "metapb.proto";
-import "errorpb.proto";
-
 option go_package = "github.com/Aetherance/kv/proto/pkg/raft_cmdpb;raft_cmdpb";
 
 message PutRequest {
@@ -17,8 +14,6 @@ message DeleteRequest {
     bytes key = 2;
 }
 
-message SnapRequest {}
-
 enum CmdType {
     reserved 1;
     reserved "Get";
@@ -26,74 +21,21 @@ enum CmdType {
     Invalid = 0;
     Put = 3;
     Delete = 4;
-    Snap = 5;
+    ReadBarrier = 5;
 }
 
 message Request {
-    reserved 2;
-    reserved "get";
+    reserved 2, 3, 6;
+    reserved "get", "snap";
 
     CmdType cmd_type = 1;
     PutRequest put = 4;
     DeleteRequest delete = 5;
-    SnapRequest snap = 6;
-}
-
-message Response {
-    reserved 2, 4, 5, 6;
-    reserved "get", "put", "delete", "snap";
-
-    CmdType cmd_type = 1;
-}
-
-message CompactLogRequest {
-    uint64 compact_index = 1;
-    uint64 compact_term = 2;
-}
-
-enum AdminCmdType {
-    reserved 1, 4, 10;
-    reserved "ChangePeer", "TransferLeader", "Split";
-
-    InvalidAdmin = 0;
-    CompactLog = 3;
-}
-
-message AdminRequest {
-    reserved 2, 5, 10;
-    reserved "change_peer", "transfer_leader", "split";
-
-    AdminCmdType cmd_type = 1;
-    CompactLogRequest compact_log = 4;
-}
-
-message RaftRequestHeader {
-    uint64 region_id = 1;
-    metapb.Peer peer = 2;
-    metapb.RegionEpoch region_epoch = 4;
-    uint64 term = 5;
-}
-
-message RaftResponseHeader {
-    reserved 2;
-    reserved "uuid";
-
-    errorpb.Error error = 1;
-    uint64 current_term = 3;
 }
 
 message RaftCmdRequest {
-    RaftRequestHeader header = 1;
-    // We can't enclose normal requests and administrator request
-    // at same time.
+    reserved 1, 3;
+    reserved "header", "admin_request";
+
     repeated Request requests = 2;
-    AdminRequest admin_request = 3;
-}
-
-message RaftCmdResponse {
-    reserved 3;
-    reserved "admin_response";
-
-    RaftResponseHeader header = 1;
-    repeated Response responses = 2;
 }

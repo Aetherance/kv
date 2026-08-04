@@ -7,8 +7,6 @@
 package raft_cmdpb
 
 import (
-	errorpb "github.com/Aetherance/kv/proto/pkg/errorpb"
-	metapb "github.com/Aetherance/kv/proto/pkg/metapb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -26,10 +24,10 @@ const (
 type CmdType int32
 
 const (
-	CmdType_Invalid CmdType = 0
-	CmdType_Put     CmdType = 3
-	CmdType_Delete  CmdType = 4
-	CmdType_Snap    CmdType = 5
+	CmdType_Invalid     CmdType = 0
+	CmdType_Put         CmdType = 3
+	CmdType_Delete      CmdType = 4
+	CmdType_ReadBarrier CmdType = 5
 )
 
 // Enum value maps for CmdType.
@@ -38,13 +36,13 @@ var (
 		0: "Invalid",
 		3: "Put",
 		4: "Delete",
-		5: "Snap",
+		5: "ReadBarrier",
 	}
 	CmdType_value = map[string]int32{
-		"Invalid": 0,
-		"Put":     3,
-		"Delete":  4,
-		"Snap":    5,
+		"Invalid":     0,
+		"Put":         3,
+		"Delete":      4,
+		"ReadBarrier": 5,
 	}
 )
 
@@ -73,52 +71,6 @@ func (x CmdType) Number() protoreflect.EnumNumber {
 // Deprecated: Use CmdType.Descriptor instead.
 func (CmdType) EnumDescriptor() ([]byte, []int) {
 	return file_raft_cmdpb_proto_rawDescGZIP(), []int{0}
-}
-
-type AdminCmdType int32
-
-const (
-	AdminCmdType_InvalidAdmin AdminCmdType = 0
-	AdminCmdType_CompactLog   AdminCmdType = 3
-)
-
-// Enum value maps for AdminCmdType.
-var (
-	AdminCmdType_name = map[int32]string{
-		0: "InvalidAdmin",
-		3: "CompactLog",
-	}
-	AdminCmdType_value = map[string]int32{
-		"InvalidAdmin": 0,
-		"CompactLog":   3,
-	}
-)
-
-func (x AdminCmdType) Enum() *AdminCmdType {
-	p := new(AdminCmdType)
-	*p = x
-	return p
-}
-
-func (x AdminCmdType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (AdminCmdType) Descriptor() protoreflect.EnumDescriptor {
-	return file_raft_cmdpb_proto_enumTypes[1].Descriptor()
-}
-
-func (AdminCmdType) Type() protoreflect.EnumType {
-	return &file_raft_cmdpb_proto_enumTypes[1]
-}
-
-func (x AdminCmdType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use AdminCmdType.Descriptor instead.
-func (AdminCmdType) EnumDescriptor() ([]byte, []int) {
-	return file_raft_cmdpb_proto_rawDescGZIP(), []int{1}
 }
 
 type PutRequest struct {
@@ -233,55 +185,18 @@ func (x *DeleteRequest) GetKey() []byte {
 	return nil
 }
 
-type SnapRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SnapRequest) Reset() {
-	*x = SnapRequest{}
-	mi := &file_raft_cmdpb_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SnapRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SnapRequest) ProtoMessage() {}
-
-func (x *SnapRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_cmdpb_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SnapRequest.ProtoReflect.Descriptor instead.
-func (*SnapRequest) Descriptor() ([]byte, []int) {
-	return file_raft_cmdpb_proto_rawDescGZIP(), []int{2}
-}
-
 type Request struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CmdType       CmdType                `protobuf:"varint,1,opt,name=cmd_type,json=cmdType,proto3,enum=raft_cmdpb.CmdType" json:"cmd_type,omitempty"`
 	Put           *PutRequest            `protobuf:"bytes,4,opt,name=put,proto3" json:"put,omitempty"`
 	Delete        *DeleteRequest         `protobuf:"bytes,5,opt,name=delete,proto3" json:"delete,omitempty"`
-	Snap          *SnapRequest           `protobuf:"bytes,6,opt,name=snap,proto3" json:"snap,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Request) Reset() {
 	*x = Request{}
-	mi := &file_raft_cmdpb_proto_msgTypes[3]
+	mi := &file_raft_cmdpb_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -293,7 +208,7 @@ func (x *Request) String() string {
 func (*Request) ProtoMessage() {}
 
 func (x *Request) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_cmdpb_proto_msgTypes[3]
+	mi := &file_raft_cmdpb_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -306,7 +221,7 @@ func (x *Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Request.ProtoReflect.Descriptor instead.
 func (*Request) Descriptor() ([]byte, []int) {
-	return file_raft_cmdpb_proto_rawDescGZIP(), []int{3}
+	return file_raft_cmdpb_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Request) GetCmdType() CmdType {
@@ -330,295 +245,16 @@ func (x *Request) GetDelete() *DeleteRequest {
 	return nil
 }
 
-func (x *Request) GetSnap() *SnapRequest {
-	if x != nil {
-		return x.Snap
-	}
-	return nil
-}
-
-type Response struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CmdType       CmdType                `protobuf:"varint,1,opt,name=cmd_type,json=cmdType,proto3,enum=raft_cmdpb.CmdType" json:"cmd_type,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Response) Reset() {
-	*x = Response{}
-	mi := &file_raft_cmdpb_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Response) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Response) ProtoMessage() {}
-
-func (x *Response) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_cmdpb_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Response.ProtoReflect.Descriptor instead.
-func (*Response) Descriptor() ([]byte, []int) {
-	return file_raft_cmdpb_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *Response) GetCmdType() CmdType {
-	if x != nil {
-		return x.CmdType
-	}
-	return CmdType_Invalid
-}
-
-type CompactLogRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CompactIndex  uint64                 `protobuf:"varint,1,opt,name=compact_index,json=compactIndex,proto3" json:"compact_index,omitempty"`
-	CompactTerm   uint64                 `protobuf:"varint,2,opt,name=compact_term,json=compactTerm,proto3" json:"compact_term,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CompactLogRequest) Reset() {
-	*x = CompactLogRequest{}
-	mi := &file_raft_cmdpb_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CompactLogRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CompactLogRequest) ProtoMessage() {}
-
-func (x *CompactLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_cmdpb_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CompactLogRequest.ProtoReflect.Descriptor instead.
-func (*CompactLogRequest) Descriptor() ([]byte, []int) {
-	return file_raft_cmdpb_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *CompactLogRequest) GetCompactIndex() uint64 {
-	if x != nil {
-		return x.CompactIndex
-	}
-	return 0
-}
-
-func (x *CompactLogRequest) GetCompactTerm() uint64 {
-	if x != nil {
-		return x.CompactTerm
-	}
-	return 0
-}
-
-type AdminRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CmdType       AdminCmdType           `protobuf:"varint,1,opt,name=cmd_type,json=cmdType,proto3,enum=raft_cmdpb.AdminCmdType" json:"cmd_type,omitempty"`
-	CompactLog    *CompactLogRequest     `protobuf:"bytes,4,opt,name=compact_log,json=compactLog,proto3" json:"compact_log,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AdminRequest) Reset() {
-	*x = AdminRequest{}
-	mi := &file_raft_cmdpb_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AdminRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AdminRequest) ProtoMessage() {}
-
-func (x *AdminRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_cmdpb_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AdminRequest.ProtoReflect.Descriptor instead.
-func (*AdminRequest) Descriptor() ([]byte, []int) {
-	return file_raft_cmdpb_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *AdminRequest) GetCmdType() AdminCmdType {
-	if x != nil {
-		return x.CmdType
-	}
-	return AdminCmdType_InvalidAdmin
-}
-
-func (x *AdminRequest) GetCompactLog() *CompactLogRequest {
-	if x != nil {
-		return x.CompactLog
-	}
-	return nil
-}
-
-type RaftRequestHeader struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RegionId      uint64                 `protobuf:"varint,1,opt,name=region_id,json=regionId,proto3" json:"region_id,omitempty"`
-	Peer          *metapb.Peer           `protobuf:"bytes,2,opt,name=peer,proto3" json:"peer,omitempty"`
-	RegionEpoch   *metapb.RegionEpoch    `protobuf:"bytes,4,opt,name=region_epoch,json=regionEpoch,proto3" json:"region_epoch,omitempty"`
-	Term          uint64                 `protobuf:"varint,5,opt,name=term,proto3" json:"term,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RaftRequestHeader) Reset() {
-	*x = RaftRequestHeader{}
-	mi := &file_raft_cmdpb_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RaftRequestHeader) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RaftRequestHeader) ProtoMessage() {}
-
-func (x *RaftRequestHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_cmdpb_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RaftRequestHeader.ProtoReflect.Descriptor instead.
-func (*RaftRequestHeader) Descriptor() ([]byte, []int) {
-	return file_raft_cmdpb_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *RaftRequestHeader) GetRegionId() uint64 {
-	if x != nil {
-		return x.RegionId
-	}
-	return 0
-}
-
-func (x *RaftRequestHeader) GetPeer() *metapb.Peer {
-	if x != nil {
-		return x.Peer
-	}
-	return nil
-}
-
-func (x *RaftRequestHeader) GetRegionEpoch() *metapb.RegionEpoch {
-	if x != nil {
-		return x.RegionEpoch
-	}
-	return nil
-}
-
-func (x *RaftRequestHeader) GetTerm() uint64 {
-	if x != nil {
-		return x.Term
-	}
-	return 0
-}
-
-type RaftResponseHeader struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Error         *errorpb.Error         `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
-	CurrentTerm   uint64                 `protobuf:"varint,3,opt,name=current_term,json=currentTerm,proto3" json:"current_term,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RaftResponseHeader) Reset() {
-	*x = RaftResponseHeader{}
-	mi := &file_raft_cmdpb_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RaftResponseHeader) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RaftResponseHeader) ProtoMessage() {}
-
-func (x *RaftResponseHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_cmdpb_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RaftResponseHeader.ProtoReflect.Descriptor instead.
-func (*RaftResponseHeader) Descriptor() ([]byte, []int) {
-	return file_raft_cmdpb_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *RaftResponseHeader) GetError() *errorpb.Error {
-	if x != nil {
-		return x.Error
-	}
-	return nil
-}
-
-func (x *RaftResponseHeader) GetCurrentTerm() uint64 {
-	if x != nil {
-		return x.CurrentTerm
-	}
-	return 0
-}
-
 type RaftCmdRequest struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Header *RaftRequestHeader     `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
-	// We can't enclose normal requests and administrator request
-	// at same time.
-	Requests      []*Request    `protobuf:"bytes,2,rep,name=requests,proto3" json:"requests,omitempty"`
-	AdminRequest  *AdminRequest `protobuf:"bytes,3,opt,name=admin_request,json=adminRequest,proto3" json:"admin_request,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Requests      []*Request             `protobuf:"bytes,2,rep,name=requests,proto3" json:"requests,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RaftCmdRequest) Reset() {
 	*x = RaftCmdRequest{}
-	mi := &file_raft_cmdpb_proto_msgTypes[9]
+	mi := &file_raft_cmdpb_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -630,7 +266,7 @@ func (x *RaftCmdRequest) String() string {
 func (*RaftCmdRequest) ProtoMessage() {}
 
 func (x *RaftCmdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_cmdpb_proto_msgTypes[9]
+	mi := &file_raft_cmdpb_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -643,14 +279,7 @@ func (x *RaftCmdRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RaftCmdRequest.ProtoReflect.Descriptor instead.
 func (*RaftCmdRequest) Descriptor() ([]byte, []int) {
-	return file_raft_cmdpb_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *RaftCmdRequest) GetHeader() *RaftRequestHeader {
-	if x != nil {
-		return x.Header
-	}
-	return nil
+	return file_raft_cmdpb_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RaftCmdRequest) GetRequests() []*Request {
@@ -660,71 +289,12 @@ func (x *RaftCmdRequest) GetRequests() []*Request {
 	return nil
 }
 
-func (x *RaftCmdRequest) GetAdminRequest() *AdminRequest {
-	if x != nil {
-		return x.AdminRequest
-	}
-	return nil
-}
-
-type RaftCmdResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Header        *RaftResponseHeader    `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
-	Responses     []*Response            `protobuf:"bytes,2,rep,name=responses,proto3" json:"responses,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RaftCmdResponse) Reset() {
-	*x = RaftCmdResponse{}
-	mi := &file_raft_cmdpb_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RaftCmdResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RaftCmdResponse) ProtoMessage() {}
-
-func (x *RaftCmdResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_raft_cmdpb_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RaftCmdResponse.ProtoReflect.Descriptor instead.
-func (*RaftCmdResponse) Descriptor() ([]byte, []int) {
-	return file_raft_cmdpb_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *RaftCmdResponse) GetHeader() *RaftResponseHeader {
-	if x != nil {
-		return x.Header
-	}
-	return nil
-}
-
-func (x *RaftCmdResponse) GetResponses() []*Response {
-	if x != nil {
-		return x.Responses
-	}
-	return nil
-}
-
 var File_raft_cmdpb_proto protoreflect.FileDescriptor
 
 const file_raft_cmdpb_proto_rawDesc = "" +
 	"\n" +
 	"\x10raft_cmdpb.proto\x12\n" +
-	"raft_cmdpb\x1a\fmetapb.proto\x1a\rerrorpb.proto\"D\n" +
+	"raft_cmdpb\"D\n" +
 	"\n" +
 	"PutRequest\x12\x0e\n" +
 	"\x02cf\x18\x01 \x01(\tR\x02cf\x12\x10\n" +
@@ -732,51 +302,19 @@ const file_raft_cmdpb_proto_rawDesc = "" +
 	"\x05value\x18\x03 \x01(\fR\x05value\"1\n" +
 	"\rDeleteRequest\x12\x0e\n" +
 	"\x02cf\x18\x01 \x01(\tR\x02cf\x12\x10\n" +
-	"\x03key\x18\x02 \x01(\fR\x03key\"\r\n" +
-	"\vSnapRequest\"\xce\x01\n" +
+	"\x03key\x18\x02 \x01(\fR\x03key\"\xb3\x01\n" +
 	"\aRequest\x12.\n" +
 	"\bcmd_type\x18\x01 \x01(\x0e2\x13.raft_cmdpb.CmdTypeR\acmdType\x12(\n" +
 	"\x03put\x18\x04 \x01(\v2\x16.raft_cmdpb.PutRequestR\x03put\x121\n" +
-	"\x06delete\x18\x05 \x01(\v2\x19.raft_cmdpb.DeleteRequestR\x06delete\x12+\n" +
-	"\x04snap\x18\x06 \x01(\v2\x17.raft_cmdpb.SnapRequestR\x04snapJ\x04\b\x02\x10\x03R\x03get\"j\n" +
-	"\bResponse\x12.\n" +
-	"\bcmd_type\x18\x01 \x01(\x0e2\x13.raft_cmdpb.CmdTypeR\acmdTypeJ\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\x05\x10\x06J\x04\b\x06\x10\aR\x03getR\x03putR\x06deleteR\x04snap\"[\n" +
-	"\x11CompactLogRequest\x12#\n" +
-	"\rcompact_index\x18\x01 \x01(\x04R\fcompactIndex\x12!\n" +
-	"\fcompact_term\x18\x02 \x01(\x04R\vcompactTerm\"\xba\x01\n" +
-	"\fAdminRequest\x123\n" +
-	"\bcmd_type\x18\x01 \x01(\x0e2\x18.raft_cmdpb.AdminCmdTypeR\acmdType\x12>\n" +
-	"\vcompact_log\x18\x04 \x01(\v2\x1d.raft_cmdpb.CompactLogRequestR\n" +
-	"compactLogJ\x04\b\x02\x10\x03J\x04\b\x05\x10\x06J\x04\b\n" +
-	"\x10\vR\vchange_peerR\x0ftransfer_leaderR\x05split\"\x9e\x01\n" +
-	"\x11RaftRequestHeader\x12\x1b\n" +
-	"\tregion_id\x18\x01 \x01(\x04R\bregionId\x12 \n" +
-	"\x04peer\x18\x02 \x01(\v2\f.metapb.PeerR\x04peer\x126\n" +
-	"\fregion_epoch\x18\x04 \x01(\v2\x13.metapb.RegionEpochR\vregionEpoch\x12\x12\n" +
-	"\x04term\x18\x05 \x01(\x04R\x04term\"i\n" +
-	"\x12RaftResponseHeader\x12$\n" +
-	"\x05error\x18\x01 \x01(\v2\x0e.errorpb.ErrorR\x05error\x12!\n" +
-	"\fcurrent_term\x18\x03 \x01(\x04R\vcurrentTermJ\x04\b\x02\x10\x03R\x04uuid\"\xb7\x01\n" +
-	"\x0eRaftCmdRequest\x125\n" +
-	"\x06header\x18\x01 \x01(\v2\x1d.raft_cmdpb.RaftRequestHeaderR\x06header\x12/\n" +
-	"\brequests\x18\x02 \x03(\v2\x13.raft_cmdpb.RequestR\brequests\x12=\n" +
-	"\radmin_request\x18\x03 \x01(\v2\x18.raft_cmdpb.AdminRequestR\fadminRequest\"\x93\x01\n" +
-	"\x0fRaftCmdResponse\x126\n" +
-	"\x06header\x18\x01 \x01(\v2\x1e.raft_cmdpb.RaftResponseHeaderR\x06header\x122\n" +
-	"\tresponses\x18\x02 \x03(\v2\x14.raft_cmdpb.ResponseR\tresponsesJ\x04\b\x03\x10\x04R\x0eadmin_response*@\n" +
+	"\x06delete\x18\x05 \x01(\v2\x19.raft_cmdpb.DeleteRequestR\x06deleteJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x06\x10\aR\x03getR\x04snap\"d\n" +
+	"\x0eRaftCmdRequest\x12/\n" +
+	"\brequests\x18\x02 \x03(\v2\x13.raft_cmdpb.RequestR\brequestsJ\x04\b\x01\x10\x02J\x04\b\x03\x10\x04R\x06headerR\radmin_request*G\n" +
 	"\aCmdType\x12\v\n" +
 	"\aInvalid\x10\x00\x12\a\n" +
 	"\x03Put\x10\x03\x12\n" +
 	"\n" +
-	"\x06Delete\x10\x04\x12\b\n" +
-	"\x04Snap\x10\x05\"\x04\b\x01\x10\x01*\x03Get*e\n" +
-	"\fAdminCmdType\x12\x10\n" +
-	"\fInvalidAdmin\x10\x00\x12\x0e\n" +
-	"\n" +
-	"CompactLog\x10\x03\"\x04\b\x01\x10\x01\"\x04\b\x04\x10\x04\"\x04\b\n" +
-	"\x10\n" +
-	"*\n" +
-	"ChangePeer*\x0eTransferLeader*\x05SplitB:Z8github.com/Aetherance/kv/proto/pkg/raft_cmdpb;raft_cmdpbb\x06proto3"
+	"\x06Delete\x10\x04\x12\x0f\n" +
+	"\vReadBarrier\x10\x05\"\x04\b\x01\x10\x01*\x03GetB:Z8github.com/Aetherance/kv/proto/pkg/raft_cmdpb;raft_cmdpbb\x06proto3"
 
 var (
 	file_raft_cmdpb_proto_rawDescOnce sync.Once
@@ -790,47 +328,25 @@ func file_raft_cmdpb_proto_rawDescGZIP() []byte {
 	return file_raft_cmdpb_proto_rawDescData
 }
 
-var file_raft_cmdpb_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_raft_cmdpb_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_raft_cmdpb_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_raft_cmdpb_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_raft_cmdpb_proto_goTypes = []any{
-	(CmdType)(0),               // 0: raft_cmdpb.CmdType
-	(AdminCmdType)(0),          // 1: raft_cmdpb.AdminCmdType
-	(*PutRequest)(nil),         // 2: raft_cmdpb.PutRequest
-	(*DeleteRequest)(nil),      // 3: raft_cmdpb.DeleteRequest
-	(*SnapRequest)(nil),        // 4: raft_cmdpb.SnapRequest
-	(*Request)(nil),            // 5: raft_cmdpb.Request
-	(*Response)(nil),           // 6: raft_cmdpb.Response
-	(*CompactLogRequest)(nil),  // 7: raft_cmdpb.CompactLogRequest
-	(*AdminRequest)(nil),       // 8: raft_cmdpb.AdminRequest
-	(*RaftRequestHeader)(nil),  // 9: raft_cmdpb.RaftRequestHeader
-	(*RaftResponseHeader)(nil), // 10: raft_cmdpb.RaftResponseHeader
-	(*RaftCmdRequest)(nil),     // 11: raft_cmdpb.RaftCmdRequest
-	(*RaftCmdResponse)(nil),    // 12: raft_cmdpb.RaftCmdResponse
-	(*metapb.Peer)(nil),        // 13: metapb.Peer
-	(*metapb.RegionEpoch)(nil), // 14: metapb.RegionEpoch
-	(*errorpb.Error)(nil),      // 15: errorpb.Error
+	(CmdType)(0),           // 0: raft_cmdpb.CmdType
+	(*PutRequest)(nil),     // 1: raft_cmdpb.PutRequest
+	(*DeleteRequest)(nil),  // 2: raft_cmdpb.DeleteRequest
+	(*Request)(nil),        // 3: raft_cmdpb.Request
+	(*RaftCmdRequest)(nil), // 4: raft_cmdpb.RaftCmdRequest
 }
 var file_raft_cmdpb_proto_depIdxs = []int32{
-	0,  // 0: raft_cmdpb.Request.cmd_type:type_name -> raft_cmdpb.CmdType
-	2,  // 1: raft_cmdpb.Request.put:type_name -> raft_cmdpb.PutRequest
-	3,  // 2: raft_cmdpb.Request.delete:type_name -> raft_cmdpb.DeleteRequest
-	4,  // 3: raft_cmdpb.Request.snap:type_name -> raft_cmdpb.SnapRequest
-	0,  // 4: raft_cmdpb.Response.cmd_type:type_name -> raft_cmdpb.CmdType
-	1,  // 5: raft_cmdpb.AdminRequest.cmd_type:type_name -> raft_cmdpb.AdminCmdType
-	7,  // 6: raft_cmdpb.AdminRequest.compact_log:type_name -> raft_cmdpb.CompactLogRequest
-	13, // 7: raft_cmdpb.RaftRequestHeader.peer:type_name -> metapb.Peer
-	14, // 8: raft_cmdpb.RaftRequestHeader.region_epoch:type_name -> metapb.RegionEpoch
-	15, // 9: raft_cmdpb.RaftResponseHeader.error:type_name -> errorpb.Error
-	9,  // 10: raft_cmdpb.RaftCmdRequest.header:type_name -> raft_cmdpb.RaftRequestHeader
-	5,  // 11: raft_cmdpb.RaftCmdRequest.requests:type_name -> raft_cmdpb.Request
-	8,  // 12: raft_cmdpb.RaftCmdRequest.admin_request:type_name -> raft_cmdpb.AdminRequest
-	10, // 13: raft_cmdpb.RaftCmdResponse.header:type_name -> raft_cmdpb.RaftResponseHeader
-	6,  // 14: raft_cmdpb.RaftCmdResponse.responses:type_name -> raft_cmdpb.Response
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	0, // 0: raft_cmdpb.Request.cmd_type:type_name -> raft_cmdpb.CmdType
+	1, // 1: raft_cmdpb.Request.put:type_name -> raft_cmdpb.PutRequest
+	2, // 2: raft_cmdpb.Request.delete:type_name -> raft_cmdpb.DeleteRequest
+	3, // 3: raft_cmdpb.RaftCmdRequest.requests:type_name -> raft_cmdpb.Request
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_raft_cmdpb_proto_init() }
@@ -843,8 +359,8 @@ func file_raft_cmdpb_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_raft_cmdpb_proto_rawDesc), len(file_raft_cmdpb_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   11,
+			NumEnums:      1,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
