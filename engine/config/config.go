@@ -2,7 +2,7 @@ package config
 
 import "time"
 
-// Config holds the engine and raftstore configuration.
+// Config holds the fixed-node adapter and Raft runtime configuration.
 type Config struct {
 	DBPath string
 
@@ -12,12 +12,12 @@ type Config struct {
 	StoreID uint64
 	Peers   map[uint64]string
 
-	// Raft related fields used by the raftstore.
+	// Raft protocol timing and log retention.
 	RaftElectionTimeoutTicks int
 	RaftHeartbeatTicks       int
 	RaftLogGcCountLimit      uint64
 
-	// Tick intervals that drive the raftstore tickers.
+	// Runtime tick intervals.
 	RaftBaseTickInterval  time.Duration
 	RaftLogGCTickInterval time.Duration
 }

@@ -64,8 +64,10 @@ func newLog(storage Storage) *RaftLog {
 	last, _ := storage.LastIndex()
 
 	entries := make([]*pb.Entry, 0)
+	dummyTerm, _ := storage.Term(first - 1)
 	dummy := &pb.Entry{
 		Index: first - 1,
+		Term:  dummyTerm,
 	}
 	entries = append(entries, dummy)
 	if first <= last {
