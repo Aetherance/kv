@@ -1,6 +1,7 @@
 package raft_storage
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -24,7 +25,7 @@ func TestSingleNodeWriteReadAndRestart(t *testing.T) {
 	if err := first.Start(); err != nil {
 		t.Fatalf("start first instance: %v", err)
 	}
-	if err := first.Write([]storage.Modify{{Data: storage.Put{
+	if err := first.Write(context.Background(), []storage.Modify{{Data: storage.Put{
 		Cf: "default", Key: []byte("key"), Val: []byte("value"),
 	}}}); err != nil {
 		t.Fatalf("write: %v", err)
@@ -69,7 +70,7 @@ func TestRejectedProposalDoesNotStopEventLoop(t *testing.T) {
 		}
 	})
 
-	err := store.Write([]storage.Modify{{Data: storage.Put{
+	err := store.Write(context.Background(), []storage.Modify{{Data: storage.Put{
 		Cf: "default", Key: []byte("key"), Val: []byte("value"),
 	}}})
 	var notLeader *NotLeaderError
@@ -89,9 +90,56 @@ func TestRejectedProposalDoesNotStopEventLoop(t *testing.T) {
 	}
 }
 
+func TestProposalWaitHonorsContext(t *testing.T) {
+	store := &RaftStorage{
+		config:  &config.Config{StoreID: 1},
+		inbox:   make(chan raftEvent),
+		done:    make(chan struct{}),
+		pending: make(map[uint64]chan error),
+	}
+
+	accepted := make(chan struct{})
+	go func() {
+		event := <-store.inbox
+		event.done <- nil
+		close(accepted)
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		result <- store.Write(ctx, []storage.Modify{{Data: storage.Put{
+			Cf: "default", Key: []byte("key"), Val: []byte("value"),
+		}}})
+	}()
+
+	select {
+	case <-accepted:
+	case <-time.After(time.Second):
+		t.Fatal("proposal was not accepted")
+	}
+	cancel()
+
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("write error = %v, want context.Canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("write did not return after cancellation")
+	}
+
+	store.pendingMu.Lock()
+	pending := len(store.pending)
+	store.pendingMu.Unlock()
+	if pending != 0 {
+		t.Fatalf("canceled proposal left %d pending requests", pending)
+	}
+}
+
 func assertStoredValue(t *testing.T, store *RaftStorage, expected string) {
 	t.Helper()
-	reader, err := store.Reader()
+	reader, err := store.Reader(context.Background())
 	if err != nil {
 		t.Fatalf("reader: %v", err)
 	}

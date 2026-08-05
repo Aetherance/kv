@@ -1,6 +1,7 @@
 package standalone
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -16,6 +17,8 @@ type StandAloneStorage struct {
 	db     *badger.DB
 	dbPath string
 }
+
+var _ storage.Storage = (*StandAloneStorage)(nil)
 
 func NewStandAloneStorage(conf *config.Config) *StandAloneStorage {
 	return &StandAloneStorage{
@@ -45,19 +48,28 @@ func (s *StandAloneStorage) Stop() error {
 	return db.Close()
 }
 
-func (s *StandAloneStorage) Reader() (storage.StorageReader, error) {
+func (s *StandAloneStorage) Reader(ctx context.Context) (storage.StorageReader, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if s.db == nil {
 		return nil, fmt.Errorf("db is nil")
 	}
 	return newStandAloneReader(s.db.NewTransaction(false)), nil
 }
 
-func (s *StandAloneStorage) Write(batch []storage.Modify) error {
+func (s *StandAloneStorage) Write(ctx context.Context, batch []storage.Modify) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if s.db == nil {
 		return fmt.Errorf("db is nil")
 	}
 	do := func(txn *badger.Txn) error {
 		for _, modify := range batch {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			switch data := modify.Data.(type) {
 			case storage.Put:
 				key := util.KeyWithCF(data.Cf, data.Key)
@@ -73,7 +85,7 @@ func (s *StandAloneStorage) Write(batch []storage.Modify) error {
 				return fmt.Errorf("invalid batch type: %T", modify.Data)
 			}
 		}
-		return nil
+		return ctx.Err()
 	}
 	return s.db.Update(do)
 }
