@@ -1,6 +1,8 @@
 package standalone
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/Aetherance/kv/engine/config"
@@ -29,7 +31,7 @@ func TestStandAloneStorageRequiresStart(t *testing.T) {
 		DBPath: t.TempDir(),
 	})
 
-	reader, err := s.Reader()
+	reader, err := s.Reader(context.Background())
 	if err == nil {
 		t.Fatalf("expected reader error before start")
 	}
@@ -37,7 +39,7 @@ func TestStandAloneStorageRequiresStart(t *testing.T) {
 		t.Fatalf("expected nil reader before start")
 	}
 
-	err = s.Write([]storage.Modify{
+	err = s.Write(context.Background(), []storage.Modify{
 		{
 			Data: storage.Put{
 				Cf:  "default",
@@ -58,7 +60,7 @@ func TestStandAloneStorageRequiresStart(t *testing.T) {
 func TestStandAloneStorageReadWriteAndDelete(t *testing.T) {
 	s := newTestStandAloneStorage(t)
 
-	err := s.Write([]storage.Modify{
+	err := s.Write(context.Background(), []storage.Modify{
 		{
 			Data: storage.Put{
 				Cf:  "default",
@@ -85,7 +87,7 @@ func TestStandAloneStorageReadWriteAndDelete(t *testing.T) {
 		t.Fatalf("write puts: %v", err)
 	}
 
-	reader, err := s.Reader()
+	reader, err := s.Reader(context.Background())
 	if err != nil {
 		t.Fatalf("create reader: %v", err)
 	}
@@ -160,7 +162,7 @@ func TestStandAloneStorageReadWriteAndDelete(t *testing.T) {
 	iter.Close()
 	reader.Close()
 
-	if err := s.Write([]storage.Modify{
+	if err := s.Write(context.Background(), []storage.Modify{
 		{
 			Data: storage.Delete{
 				Cf:  "default",
@@ -173,7 +175,7 @@ func TestStandAloneStorageReadWriteAndDelete(t *testing.T) {
 
 	reader.Close()
 
-	reader, err = s.Reader()
+	reader, err = s.Reader(context.Background())
 	if err != nil {
 		t.Fatalf("create second reader: %v", err)
 	}
@@ -191,7 +193,7 @@ func TestStandAloneStorageReadWriteAndDelete(t *testing.T) {
 func TestStandAloneStorageWriteRejectsInvalidBatch(t *testing.T) {
 	s := newTestStandAloneStorage(t)
 
-	err := s.Write([]storage.Modify{
+	err := s.Write(context.Background(), []storage.Modify{
 		{Data: "bad"},
 	})
 	if err == nil {
@@ -210,5 +212,39 @@ func TestStandAloneStorageStopClearsDB(t *testing.T) {
 	}
 	if err := s.Stop(); err != nil {
 		t.Fatalf("stop storage twice: %v", err)
+	}
+}
+
+func TestStandAloneStorageHonorsCanceledContext(t *testing.T) {
+	s := newTestStandAloneStorage(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := s.Write(ctx, []storage.Modify{{Data: storage.Put{
+		Cf: "default", Key: []byte("key"), Val: []byte("value"),
+	}}})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("write error = %v, want context.Canceled", err)
+	}
+
+	reader, err := s.Reader(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("reader error = %v, want context.Canceled", err)
+	}
+	if reader != nil {
+		t.Fatal("expected no reader for a canceled context")
+	}
+
+	reader, err = s.Reader(context.Background())
+	if err != nil {
+		t.Fatalf("create reader: %v", err)
+	}
+	defer reader.Close()
+	value, err := reader.GetCF("default", []byte("key"))
+	if err != nil {
+		t.Fatalf("get canceled write: %v", err)
+	}
+	if value != nil {
+		t.Fatalf("canceled write stored value %q", value)
 	}
 }

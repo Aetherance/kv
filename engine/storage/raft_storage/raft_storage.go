@@ -62,6 +62,8 @@ type RaftStorage struct {
 	stopped     bool
 }
 
+var _ storage.Storage = (*RaftStorage)(nil)
+
 func NewRaftStorage(conf *config.Config) *RaftStorage {
 	return &RaftStorage{
 		config:  conf,
@@ -69,7 +71,10 @@ func NewRaftStorage(conf *config.Config) *RaftStorage {
 	}
 }
 
-func (rs *RaftStorage) Write(batch []storage.Modify) error {
+func (rs *RaftStorage) Write(ctx context.Context, batch []storage.Modify) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if len(batch) == 0 {
 		return nil
 	}
@@ -91,14 +96,17 @@ func (rs *RaftStorage) Write(batch []storage.Modify) error {
 		}
 	}
 
-	return rs.propose(&raft_cmdpb.RaftCmdRequest{Requests: requests})
+	return rs.propose(ctx, &raft_cmdpb.RaftCmdRequest{Requests: requests})
 }
 
-func (rs *RaftStorage) Reader() (storage.StorageReader, error) {
+func (rs *RaftStorage) Reader(ctx context.Context) (storage.StorageReader, error) {
 	request := &raft_cmdpb.RaftCmdRequest{Requests: []*raft_cmdpb.Request{{
 		CmdType: raft_cmdpb.CmdType_ReadBarrier,
 	}}}
-	if err := rs.propose(request); err != nil {
+	if err := rs.propose(ctx, request); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	return &badgerReader{txn: rs.db.NewTransaction(false)}, nil
@@ -230,7 +238,10 @@ func (rs *RaftStorage) Raft(stream rspb.RaftService_RaftServer) error {
 	}
 }
 
-func (rs *RaftStorage) propose(request *raft_cmdpb.RaftCmdRequest) error {
+func (rs *RaftStorage) propose(ctx context.Context, request *raft_cmdpb.RaftCmdRequest) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	payload, err := proto.Marshal(request)
 	if err != nil {
 		return err
@@ -243,11 +254,20 @@ func (rs *RaftStorage) propose(request *raft_cmdpb.RaftCmdRequest) error {
 	rs.pending[sequence] = resultCh
 	rs.pendingMu.Unlock()
 
-	if err := rs.proposeData(context.Background(), data); err != nil {
+	if err := rs.proposeData(ctx, data); err != nil {
 		rs.removePending(sequence)
 		return err
 	}
-	return <-resultCh
+	select {
+	case err := <-resultCh:
+		return err
+	case <-ctx.Done():
+		rs.removePending(sequence)
+		return ctx.Err()
+	case <-rs.done:
+		rs.removePending(sequence)
+		return rs.stoppedError()
+	}
 }
 
 func (rs *RaftStorage) applyCommand(txn *badger.Txn, _ uint64, data []byte) error {
