@@ -13,12 +13,12 @@ import (
 	"github.com/Aetherance/kv/raft"
 )
 
-var _ raft.PersistentState = (*raftStateStorage)(nil)
+var _ raft.PersistentState = (*raftStatePersistence)(nil)
 
 type applyFunc func(txn *badger.Txn, index uint64, data []byte) error
 
-// raftStateStorage keeps the durable state for this Raft-backed KV.
-type raftStateStorage struct {
+// raftStatePersistence keeps the durable state for this Raft-backed KV.
+type raftStatePersistence struct {
 	db *badger.DB
 
 	hardState    *raftpb.HardState
@@ -38,11 +38,11 @@ var (
 	logSuffix         = []byte("log/")
 )
 
-func openRaftStateStorage(db *badger.DB, initialPeers []uint64) (*raftStateStorage, error) {
+func openRaftStatePersistence(db *badger.DB, initialPeers []uint64) (*raftStatePersistence, error) {
 	if db == nil {
 		return nil, errors.New("raft storage: nil badger database")
 	}
-	state := &raftStateStorage{db: db}
+	state := &raftStatePersistence{db: db}
 	if err := state.loadOrBootstrap(initialPeers); err != nil {
 		return nil, err
 	}
@@ -55,11 +55,11 @@ func openRaftStateStorage(db *badger.DB, initialPeers []uint64) (*raftStateStora
 	return state, nil
 }
 
-func (e *raftStateStorage) InitialState() (*raftpb.HardState, *raftpb.ConfState, error) {
+func (e *raftStatePersistence) InitialState() (*raftpb.HardState, *raftpb.ConfState, error) {
 	return cloneHardState(e.hardState), cloneConfState(e.confState), nil
 }
 
-func (e *raftStateStorage) Entries(low, high uint64) ([]*raftpb.Entry, error) {
+func (e *raftStatePersistence) Entries(low, high uint64) ([]*raftpb.Entry, error) {
 	if low > high {
 		return nil, fmt.Errorf("raft storage: entries low %d exceeds high %d", low, high)
 	}
@@ -98,7 +98,7 @@ func (e *raftStateStorage) Entries(low, high uint64) ([]*raftpb.Entry, error) {
 	return entries, err
 }
 
-func (e *raftStateStorage) Term(index uint64) (uint64, error) {
+func (e *raftStatePersistence) Term(index uint64) (uint64, error) {
 	snapshotIndex := e.snapshot.Metadata.Index
 	if index < snapshotIndex {
 		return 0, raft.ErrCompacted
@@ -116,24 +116,24 @@ func (e *raftStateStorage) Term(index uint64) (uint64, error) {
 	return entries[0].Term, nil
 }
 
-func (e *raftStateStorage) LastIndex() (uint64, error) { return e.lastIndex, nil }
+func (e *raftStatePersistence) LastIndex() (uint64, error) { return e.lastIndex, nil }
 
-func (e *raftStateStorage) FirstIndex() (uint64, error) {
+func (e *raftStatePersistence) FirstIndex() (uint64, error) {
 	return e.snapshot.Metadata.Index + 1, nil
 }
 
-func (e *raftStateStorage) Snapshot() (*raftpb.Snapshot, error) {
+func (e *raftStatePersistence) Snapshot() (*raftpb.Snapshot, error) {
 	if raft.IsEmptySnap(e.snapshot) {
 		return nil, raft.ErrSnapshotTemporarilyUnavailable
 	}
 	return cloneSnapshot(e.snapshot), nil
 }
 
-func (e *raftStateStorage) applied() uint64 { return e.appliedIndex }
+func (e *raftStatePersistence) applied() uint64 { return e.appliedIndex }
 
 // persist saves all unstable Raft state before any dependent message is sent.
 // Snapshot installation is included so a successful return is crash-recoverable.
-func (e *raftStateStorage) persist(ready *raft.Ready) error {
+func (e *raftStatePersistence) persist(ready *raft.Ready) error {
 	if ready == nil {
 		return errors.New("raft storage: nil ready")
 	}
@@ -214,7 +214,7 @@ func (e *raftStateStorage) persist(ready *raft.Ready) error {
 	return nil
 }
 
-func (e *raftStateStorage) apply(index uint64, data []byte, apply applyFunc) error {
+func (e *raftStatePersistence) apply(index uint64, data []byte, apply applyFunc) error {
 	if err := e.checkNextApplied(index); err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func (e *raftStateStorage) apply(index uint64, data []byte, apply applyFunc) err
 	return nil
 }
 
-func (e *raftStateStorage) markApplied(index uint64) error {
+func (e *raftStatePersistence) markApplied(index uint64) error {
 	if err := e.checkNextApplied(index); err != nil {
 		return err
 	}
@@ -244,7 +244,7 @@ func (e *raftStateStorage) markApplied(index uint64) error {
 	return nil
 }
 
-func (e *raftStateStorage) applyConfChange(index uint64, state *raftpb.ConfState) error {
+func (e *raftStatePersistence) applyConfChange(index uint64, state *raftpb.ConfState) error {
 	if err := e.checkNextApplied(index); err != nil {
 		return err
 	}
@@ -262,7 +262,7 @@ func (e *raftStateStorage) applyConfChange(index uint64, state *raftpb.ConfState
 	return nil
 }
 
-func (e *raftStateStorage) maybeCompact(threshold uint64) error {
+func (e *raftStatePersistence) maybeCompact(threshold uint64) error {
 	if threshold == 0 {
 		return nil
 	}
@@ -309,14 +309,14 @@ func (e *raftStateStorage) maybeCompact(threshold uint64) error {
 	return nil
 }
 
-func (e *raftStateStorage) checkNextApplied(index uint64) error {
+func (e *raftStatePersistence) checkNextApplied(index uint64) error {
 	if index != e.appliedIndex+1 {
 		return fmt.Errorf("raft storage: apply index %d is not after durable index %d", index, e.appliedIndex)
 	}
 	return nil
 }
 
-func (e *raftStateStorage) loadOrBootstrap(initialPeers []uint64) error {
+func (e *raftStatePersistence) loadOrBootstrap(initialPeers []uint64) error {
 	err := e.db.View(func(txn *badger.Txn) error {
 		_, err := txn.Get(e.key(initializedSuffix))
 		return err
@@ -381,7 +381,7 @@ func (e *raftStateStorage) loadOrBootstrap(initialPeers []uint64) error {
 	})
 }
 
-func (e *raftStateStorage) deleteAllLogs(txn *badger.Txn) error {
+func (e *raftStatePersistence) deleteAllLogs(txn *badger.Txn) error {
 	prefix := e.key(logSuffix)
 	iterator := txn.NewIterator(badger.DefaultIteratorOptions)
 	defer iterator.Close()
@@ -393,13 +393,13 @@ func (e *raftStateStorage) deleteAllLogs(txn *badger.Txn) error {
 	return nil
 }
 
-func (e *raftStateStorage) key(suffix []byte) []byte {
+func (e *raftStatePersistence) key(suffix []byte) []byte {
 	key := make([]byte, 0, len(raftNamespace)+len(suffix))
 	key = append(key, raftNamespace...)
 	return append(key, suffix...)
 }
 
-func (e *raftStateStorage) logKey(index uint64) []byte {
+func (e *raftStatePersistence) logKey(index uint64) []byte {
 	key := e.key(logSuffix)
 	var encoded [8]byte
 	binary.BigEndian.PutUint64(encoded[:], index)
