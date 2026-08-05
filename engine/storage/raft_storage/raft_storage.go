@@ -44,7 +44,7 @@ type RaftStorage struct {
 	config *config.Config
 	db     *badger.DB
 	node   *raft.RawNode
-	state  *raftStateStorage
+	state  *raftStatePersistence
 
 	transport *ServerTransport
 	cancel    context.CancelFunc
@@ -132,7 +132,7 @@ func (rs *RaftStorage) Start() error {
 	}
 
 	peers := sortedPeerIDs(rs.config.Peers)
-	state, err := openRaftStateStorage(db, peers)
+	state, err := openRaftStatePersistence(db, peers)
 	if err != nil {
 		cleanup()
 		return err
