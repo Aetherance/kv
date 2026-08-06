@@ -17,12 +17,16 @@ const (
 	StateFollower StateType = iota
 	StateCandidate
 	StateLeader
+	// StatePreCandidate is a transient state used to probe whether an election
+	// can win before incrementing the local term.
+	StatePreCandidate
 )
 
 var stmap = [...]string{
 	"StateFollower",
 	"StateCandidate",
 	"StateLeader",
+	"StatePreCandidate",
 }
 
 func (st StateType) String() string {
@@ -46,8 +50,8 @@ type Config struct {
 
 	// ElectionTick is the number of Node.Tick invocations that must pass between
 	// elections. That is, if a follower does not receive any message from the
-	// leader of current term before ElectionTick has elapsed, it will become
-	// candidate and start an election. ElectionTick must be greater than
+	// leader of current term before ElectionTick has elapsed, it will start a
+	// pre-election. ElectionTick must be greater than
 	// HeartbeatTick. We suggest ElectionTick = 10 * HeartbeatTick to avoid
 	// unnecessary leader switching.
 	ElectionTick int
@@ -233,7 +237,7 @@ func (r *Raft) sendHeartbeat(to uint64) {
 // tick advances the internal logical clock by a single tick.
 func (r *Raft) tick() {
 	switch r.State {
-	case StateFollower, StateCandidate:
+	case StateFollower, StateCandidate, StatePreCandidate:
 		r.electionElapsed++
 		if r.electionElapsed >= r.randomElectionTimeout {
 			r.electionElapsed = 0
@@ -252,21 +256,34 @@ func (r *Raft) tick() {
 }
 
 func (r *Raft) campaign() {
+	r.becomePreCandidate()
+	if len(r.Prs) == 1 {
+		r.campaignElection()
+		return
+	}
+	r.sendVoteRequests(pb.MessageType_MsgPreVote, r.Term+1)
+}
+
+func (r *Raft) campaignElection() {
 	r.becomeCandidate()
 	if len(r.Prs) == 1 {
 		r.becomeLeader()
 		return
 	}
+	r.sendVoteRequests(pb.MessageType_MsgRequestVote, r.Term)
+}
+
+func (r *Raft) sendVoteRequests(msgType pb.MessageType, term uint64) {
 	logIdx := r.RaftLog.LastIndex()
 	logTerm, _ := r.RaftLog.Term(logIdx)
 
-	for prId, _ := range r.Prs {
+	for prId := range r.Prs {
 		if prId != r.id {
 			r.msgs = append(r.msgs, &pb.Message{
 				From:    r.id,
 				To:      prId,
-				Term:    r.Term,
-				MsgType: pb.MessageType_MsgRequestVote,
+				Term:    term,
+				MsgType: msgType,
 				Index:   logIdx,
 				LogTerm: logTerm,
 			})
@@ -276,10 +293,23 @@ func (r *Raft) campaign() {
 
 // becomeFollower transform this peer's state to Follower
 func (r *Raft) becomeFollower(term uint64, lead uint64) {
+	if term > r.Term {
+		r.Vote = None
+	}
 	r.State = StateFollower
 	r.Term = term
 	r.Lead = lead
-	r.Vote = None
+	r.electionElapsed = 0
+	r.randomElectionTimeout = r.electionTimeout + rand.Intn(r.electionTimeout)
+}
+
+// becomePreCandidate starts a non-persistent pre-election. In particular, it
+// must not change Term or Vote.
+func (r *Raft) becomePreCandidate() {
+	r.State = StatePreCandidate
+	r.Lead = None
+	r.votes = make(map[uint64]bool)
+	r.votes[r.id] = true
 	r.electionElapsed = 0
 	r.randomElectionTimeout = r.electionTimeout + rand.Intn(r.electionTimeout)
 }
@@ -357,8 +387,29 @@ func (r *Raft) Step(m *pb.Message) error {
 	}
 
 	if m.Term > r.Term {
-		r.becomeFollower(m.Term, None)
+		// PreVote probes use a prospective term and must not update durable
+		// state. A granted response carries that same prospective term.
+		if m.MsgType != pb.MessageType_MsgPreVote &&
+			!(m.MsgType == pb.MessageType_MsgPreVoteResponse && !m.Reject) {
+			r.becomeFollower(m.Term, None)
+		}
 	} else if m.Term < r.Term {
+		if m.MsgType == pb.MessageType_MsgPreVote {
+			r.msgs = append(r.msgs, &pb.Message{
+				From:    r.id,
+				To:      m.From,
+				Term:    r.Term,
+				MsgType: pb.MessageType_MsgPreVoteResponse,
+				Reject:  true,
+			})
+		}
+		return nil
+	}
+
+	// Every role may answer a PreVote request. Handling it here guarantees that
+	// the request never changes the receiver's role, term, vote, or timer.
+	if m.MsgType == pb.MessageType_MsgPreVote {
+		r.handlePreVote(m)
 		return nil
 	}
 
@@ -385,6 +436,22 @@ func (r *Raft) Step(m *pb.Message) error {
 			r.becomeFollower(m.Term, m.From)
 		case pb.MessageType_MsgHeartbeat:
 			r.becomeFollower(m.Term, m.From)
+		case pb.MessageType_MsgSnapshot:
+			r.becomeFollower(m.Term, m.From)
+			r.handleSnapshot(m)
+		}
+	case StatePreCandidate:
+		switch m.MsgType {
+		case pb.MessageType_MsgPreVoteResponse:
+			r.handlePreVoteResp(m)
+		case pb.MessageType_MsgRequestVote:
+			r.handleRequestVote(m)
+		case pb.MessageType_MsgAppend:
+			r.becomeFollower(m.Term, m.From)
+			r.handleAppendEntries(m)
+		case pb.MessageType_MsgHeartbeat:
+			r.becomeFollower(m.Term, m.From)
+			r.handleHeartbeat(m)
 		case pb.MessageType_MsgSnapshot:
 			r.becomeFollower(m.Term, m.From)
 			r.handleSnapshot(m)
@@ -488,10 +555,7 @@ func (r *Raft) handleHeartbeat(m *pb.Message) {
 }
 
 func (r *Raft) handleRequestVote(m *pb.Message) {
-	lastIdx := r.RaftLog.LastIndex()
-	lastTerm, _ := r.RaftLog.Term(lastIdx)
-
-	if m.LogTerm < lastTerm || (m.LogTerm == lastTerm && m.Index < lastIdx) {
+	if !r.isLogUpToDate(m.Index, m.LogTerm) {
 		r.msgs = append(r.msgs, &pb.Message{
 			From:    r.id,
 			To:      m.From,
@@ -522,6 +586,31 @@ func (r *Raft) handleRequestVote(m *pb.Message) {
 	}
 }
 
+func (r *Raft) handlePreVote(m *pb.Message) {
+	canVote := m.Term > r.Term ||
+		(m.Term == r.Term && (r.Vote == m.From || (r.Vote == None && r.Lead == None)))
+	grant := canVote && r.isLogUpToDate(m.Index, m.LogTerm)
+	responseTerm := r.Term
+	if grant {
+		// A granted response echoes the prospective term so the campaigner can
+		// distinguish it from a stale response without changing its local term.
+		responseTerm = m.Term
+	}
+	r.msgs = append(r.msgs, &pb.Message{
+		From:    r.id,
+		To:      m.From,
+		Term:    responseTerm,
+		MsgType: pb.MessageType_MsgPreVoteResponse,
+		Reject:  !grant,
+	})
+}
+
+func (r *Raft) isLogUpToDate(index, logTerm uint64) bool {
+	lastIdx := r.RaftLog.LastIndex()
+	lastTerm, _ := r.RaftLog.Term(lastIdx)
+	return logTerm > lastTerm || (logTerm == lastTerm && index >= lastIdx)
+}
+
 func (r *Raft) handleRequestVoteResp(m *pb.Message) {
 	r.votes[m.From] = !m.Reject
 	voteCount := 0
@@ -534,6 +623,22 @@ func (r *Raft) handleRequestVoteResp(m *pb.Message) {
 		r.becomeLeader()
 	} else if len(r.votes) == len(r.Prs) {
 		r.becomeFollower(r.Term, None)
+	}
+}
+
+func (r *Raft) handlePreVoteResp(m *pb.Message) {
+	if (!m.Reject && m.Term != r.Term+1) || (m.Reject && m.Term != r.Term) {
+		return
+	}
+	r.votes[m.From] = !m.Reject
+	voteCount := 0
+	for _, vote := range r.votes {
+		if vote {
+			voteCount++
+		}
+	}
+	if voteCount > len(r.Prs)/2 {
+		r.campaignElection()
 	}
 }
 

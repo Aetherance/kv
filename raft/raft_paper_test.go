@@ -102,10 +102,9 @@ func TestCandidateStartNewElection2AA(t *testing.T) {
 }
 
 // testNonleaderStartElection tests that if a follower receives no communication
-// over election timeout, it begins an election to choose a new leader. It
-// increments its current term and transitions to candidate state. It then
-// votes for itself and issues RequestVote RPCs in parallel to each of the
-// other servers in the cluster.
+// over election timeout, it begins a pre-election without changing its term.
+// It votes for itself provisionally and issues PreVote RPCs in parallel to
+// each of the other servers in the cluster.
 // Reference: section 5.2
 // Also if a candidate fails to obtain a majority, it will time out and
 // start a new election by incrementing its term and initiating another
@@ -126,11 +125,11 @@ func testNonleaderStartElection(t *testing.T, state StateType) {
 		r.tick()
 	}
 
-	if r.Term != 2 {
-		t.Errorf("term = %d, want 2", r.Term)
+	if r.Term != 1 {
+		t.Errorf("term = %d, want 1", r.Term)
 	}
-	if r.State != StateCandidate {
-		t.Errorf("state = %s, want %s", r.State, StateCandidate)
+	if r.State != StatePreCandidate {
+		t.Errorf("state = %s, want %s", r.State, StatePreCandidate)
 	}
 	if !r.votes[r.id] {
 		t.Errorf("vote for self = false, want true")
@@ -138,8 +137,8 @@ func testNonleaderStartElection(t *testing.T, state StateType) {
 	msgs := r.readMessages()
 	sort.Sort(messageSlice(msgs))
 	wmsgs := []*pb.Message{
-		{From: 1, To: 2, Term: 2, MsgType: pb.MessageType_MsgRequestVote},
-		{From: 1, To: 3, Term: 2, MsgType: pb.MessageType_MsgRequestVote},
+		{From: 1, To: 2, Term: 2, MsgType: pb.MessageType_MsgPreVote},
+		{From: 1, To: 3, Term: 2, MsgType: pb.MessageType_MsgPreVote},
 	}
 	if !msgsEqual(msgs, wmsgs) {
 		t.Errorf("msgs = %v, want %v", msgs, wmsgs)
@@ -176,6 +175,11 @@ func TestLeaderElectionInOneRoundRPC2AA(t *testing.T) {
 		r := newTestRaft(1, idsBySize(tt.size), 10, 1, NewMemoryState())
 
 		r.Step(&pb.Message{From: 1, To: 1, MsgType: pb.MessageType_MsgHup})
+		// First complete the PreVote round so this test can focus on the
+		// subsequent RequestVote round.
+		for id := uint64(2); id <= uint64(tt.size/2+1); id++ {
+			r.Step(&pb.Message{From: id, To: 1, Term: r.Term + 1, MsgType: pb.MessageType_MsgPreVoteResponse})
+		}
 		for id, vote := range tt.votes {
 			r.Step(&pb.Message{From: id, To: 1, Term: r.Term, MsgType: pb.MessageType_MsgRequestVoteResponse, Reject: !vote})
 		}
@@ -235,6 +239,7 @@ func TestCandidateFallback2AA(t *testing.T) {
 	for i, tt := range tests {
 		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 		r.Step(&pb.Message{From: 1, To: 1, MsgType: pb.MessageType_MsgHup})
+		r.Step(&pb.Message{From: 2, To: 1, Term: r.Term + 1, MsgType: pb.MessageType_MsgPreVoteResponse})
 		if r.State != StateCandidate {
 			t.Fatalf("unexpected state = %s, want %s", r.State, StateCandidate)
 		}
@@ -729,6 +734,7 @@ func TestLeaderSyncFollowerLog2AB(t *testing.T) {
 		n.send(&pb.Message{From: 1, To: 1, MsgType: pb.MessageType_MsgHup})
 		// The election occurs in the term after the one we loaded with
 		// lead's term and committed index setted up above.
+		n.send(&pb.Message{From: 3, To: 1, MsgType: pb.MessageType_MsgPreVoteResponse, Term: term + 1})
 		n.send(&pb.Message{From: 3, To: 1, MsgType: pb.MessageType_MsgRequestVoteResponse, Term: term + 1})
 
 		n.send(&pb.Message{From: 1, To: 1, MsgType: pb.MessageType_MsgPropose, Entries: []*pb.Entry{{}}})
@@ -757,9 +763,9 @@ func TestVoteRequest2AB(t *testing.T) {
 		})
 		r.readMessages()
 
-		for r.State != StateCandidate {
-			r.tick()
-		}
+		r.Step(&pb.Message{From: 1, To: 1, MsgType: pb.MessageType_MsgHup})
+		r.readMessages()
+		r.Step(&pb.Message{From: 2, To: 1, Term: tt.wterm, MsgType: pb.MessageType_MsgPreVoteResponse})
 
 		msgs := r.readMessages()
 		sort.Sort(messageSlice(msgs))

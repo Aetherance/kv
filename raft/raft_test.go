@@ -104,8 +104,8 @@ func TestLeaderElection2AA(t *testing.T) {
 	}{
 		{newNetworkWithConfig(cfg, nil, nil, nil), StateLeader, 1},
 		{newNetworkWithConfig(cfg, nil, nil, nopStepper), StateLeader, 1},
-		{newNetworkWithConfig(cfg, nil, nopStepper, nopStepper), StateCandidate, 1},
-		{newNetworkWithConfig(cfg, nil, nopStepper, nopStepper, nil), StateCandidate, 1},
+		{newNetworkWithConfig(cfg, nil, nopStepper, nopStepper), StatePreCandidate, 0},
+		{newNetworkWithConfig(cfg, nil, nopStepper, nopStepper, nil), StatePreCandidate, 0},
 		{newNetworkWithConfig(cfg, nil, nopStepper, nopStepper, nil, nil), StateLeader, 1},
 	}
 
@@ -214,7 +214,7 @@ func TestLeaderElectionOverwriteNewerLogs2AB(t *testing.T) {
 func TestVoteFromAnyState2AA(t *testing.T) {
 	vt := pb.MessageType_MsgRequestVote
 	vt_resp := pb.MessageType_MsgRequestVoteResponse
-	for st := StateType(0); st <= StateLeader; st++ {
+	for st := StateType(0); st <= StatePreCandidate; st++ {
 		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 		r.Term = 1
 
@@ -226,6 +226,8 @@ func TestVoteFromAnyState2AA(t *testing.T) {
 		case StateLeader:
 			r.becomeCandidate()
 			r.becomeLeader()
+		case StatePreCandidate:
+			r.becomePreCandidate()
 		}
 		r.readMessages() // clear message
 
@@ -418,17 +420,17 @@ func TestDuelingCandidates2AB(t *testing.T) {
 		t.Errorf("state = %s, want %s", sm.State, StateLeader)
 	}
 
-	// 3 stays as candidate since it receives a vote from 3 and a rejection from 2
+	// Node 2 rejects node 3's stale pre-election. The rejection carries node
+	// 2's newer term, so node 3 becomes a follower without disrupting node 1.
 	sm = nt.peers[3].(*Raft)
-	if sm.State != StateCandidate {
-		t.Errorf("state = %s, want %s", sm.State, StateCandidate)
+	if sm.State != StateFollower {
+		t.Errorf("state = %s, want %s", sm.State, StateFollower)
 	}
 
 	nt.recover()
 
-	// candidate 3 now increases its term and tries to vote again
-	// we expect it to disrupt the leader 1 since it has a higher term
-	// 3 will be follower again since both 1 and 2 rejects its vote request since 3 does not have a long enough log
+	// Node 3 tries again after recovery, but its stale log cannot obtain a
+	// PreVote quorum, so the current leader remains undisturbed.
 	nt.send(&pb.Message{From: 3, To: 3, MsgType: pb.MessageType_MsgHup})
 
 	wlog := newLog(newMemoryStateWithEnts([]*pb.Entry{{}, {Data: nil, Term: 1, Index: 1}}))
@@ -439,9 +441,9 @@ func TestDuelingCandidates2AB(t *testing.T) {
 		term    uint64
 		raftLog *RaftLog
 	}{
-		{a, StateFollower, 2, wlog},
-		{b, StateFollower, 2, wlog},
-		{c, StateFollower, 2, newLog(NewMemoryState())},
+		{a, StateLeader, 1, wlog},
+		{b, StateFollower, 1, wlog},
+		{c, StatePreCandidate, 1, newLog(NewMemoryState())},
 	}
 
 	for i, tt := range tests {
@@ -578,8 +580,12 @@ func TestProposal2AB(t *testing.T) {
 			}
 		}
 		sm := tt.network.peers[1].(*Raft)
-		if g := sm.Term; g != 1 {
-			t.Errorf("#%d: term = %d, want %d", i, g, 1)
+		wantTerm := uint64(0)
+		if tt.success {
+			wantTerm = 1
+		}
+		if g := sm.Term; g != wantTerm {
+			t.Errorf("#%d: term = %d, want %d", i, g, wantTerm)
 		}
 	}
 }
@@ -812,9 +818,7 @@ func testCandidateResetTerm(t *testing.T, mt pb.MessageType) {
 		t.Errorf("state = %s, want %s", b.State, StateFollower)
 	}
 
-	for c.State != StateCandidate {
-		c.tick()
-	}
+	c.campaignElection()
 
 	nt.recover()
 
@@ -832,11 +836,8 @@ func testCandidateResetTerm(t *testing.T, mt pb.MessageType) {
 	}
 }
 
-// TestDisruptiveFollower tests isolated follower,
-// with slow network incoming from leader, election times out
-// to become a candidate with an increased term. Then, the
-// candiate's response to late leader heartbeat forces the leader
-// to step down.
+// TestDisruptiveFollower verifies that an isolated follower cannot increase
+// the term without first obtaining a PreVote quorum.
 func TestDisruptiveFollower2AA(t *testing.T) {
 	n1 := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
 	n2 := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
@@ -868,7 +869,7 @@ func TestDisruptiveFollower2AA(t *testing.T) {
 	// this is to expedite campaign trigger when given larger
 	// election timeouts (e.g. multi-datacenter deploy)
 	// Or leader messages are being delayed while ticks elapse
-	for n3.State != StateCandidate {
+	for n3.State != StatePreCandidate {
 		n3.tick()
 	}
 
@@ -878,49 +879,42 @@ func TestDisruptiveFollower2AA(t *testing.T) {
 	// check state
 	// n1.State == StateLeader
 	// n2.State == StateFollower
-	// n3.State == StateCandidate
+	// n3.State == StatePreCandidate
 	if n1.State != StateLeader {
 		t.Fatalf("node 1 state: %s, want %s", n1.State, StateLeader)
 	}
 	if n2.State != StateFollower {
 		t.Fatalf("node 2 state: %s, want %s", n2.State, StateFollower)
 	}
-	if n3.State != StateCandidate {
-		t.Fatalf("node 3 state: %s, want %s", n3.State, StateCandidate)
+	if n3.State != StatePreCandidate {
+		t.Fatalf("node 3 state: %s, want %s", n3.State, StatePreCandidate)
 	}
 	// check term
 	// n1.Term == 2
 	// n2.Term == 2
-	// n3.Term == 3
+	// n3.Term == 2
 	if n1.Term != 2 {
 		t.Fatalf("node 1 term: %d, want %d", n1.Term, 2)
 	}
 	if n2.Term != 2 {
 		t.Fatalf("node 2 term: %d, want %d", n2.Term, 2)
 	}
-	if n3.Term != 3 {
-		t.Fatalf("node 3 term: %d, want %d", n3.Term, 3)
+	if n3.Term != 2 {
+		t.Fatalf("node 3 term: %d, want %d", n3.Term, 2)
 	}
 
-	// while outgoing vote requests are still queued in n3,
-	// leader heartbeat finally arrives at candidate n3
-	// however, due to delayed network from leader, leader
-	// heartbeat was sent with lower term than candidate's
+	// The delayed heartbeat is still in the current term and makes the
+	// pre-candidate return to follower without disrupting the leader.
 	nt.send(&pb.Message{From: 1, To: 3, Term: n1.Term, MsgType: pb.MessageType_MsgHeartbeat})
 
-	// then candidate n3 responds with "pb.MessageType_MsgAppendResponse" of higher term
-	// and leader steps down from a message with higher term
-	// this is to disrupt the current leader, so that candidate
-	// with higher term can be freed with following election
-
-	// check state
-	if n1.State != StateFollower {
-		t.Fatalf("node 1 state: %s, want %s", n1.State, StateFollower)
+	if n1.State != StateLeader {
+		t.Fatalf("node 1 state: %s, want %s", n1.State, StateLeader)
 	}
-
-	// check term
-	if n1.Term != 3 {
-		t.Fatalf("node 1 term: %d, want %d", n1.Term, 3)
+	if n1.Term != 2 {
+		t.Fatalf("node 1 term: %d, want %d", n1.Term, 2)
+	}
+	if n3.State != StateFollower {
+		t.Fatalf("node 3 state: %s, want %s", n3.State, StateFollower)
 	}
 }
 

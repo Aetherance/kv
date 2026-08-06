@@ -39,6 +39,8 @@ enum MessageType {
     MsgHeartbeatResponse = 9;
     MsgTransferLeader = 11;
     MsgTimeoutNow = 12;
+    MsgPreVote = 13;
+    MsgPreVoteResponse = 14;
 }
 
 message Message {

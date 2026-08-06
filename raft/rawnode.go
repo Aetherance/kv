@@ -84,7 +84,7 @@ func (rn *RawNode) Tick() {
 	rn.Raft.tick()
 }
 
-// Campaign causes this RawNode to transition to candidate state.
+// Campaign causes this RawNode to start a pre-election.
 func (rn *RawNode) Campaign() error {
 	return rn.Raft.Step(&pb.Message{
 		MsgType: pb.MessageType_MsgHup,
@@ -141,26 +141,35 @@ func (rn *RawNode) Step(m *pb.Message) error {
 	return ErrStepPeerNotFound
 }
 
-// Ready returns the current point-in-time state of this RawNode.
-func (rn *RawNode) Ready() Ready {
-	softState := &SoftState{
+func (rn *RawNode) softState() *SoftState {
+	return &SoftState{
 		Lead:      rn.Raft.Lead,
 		RaftState: rn.Raft.State,
 	}
+}
+
+func (rn *RawNode) hardState() *pb.HardState {
+	return &pb.HardState{
+		Term:   rn.Raft.Term,
+		Vote:   rn.Raft.Vote,
+		Commit: rn.Raft.RaftLog.committed,
+	}
+}
+
+// Ready returns the current point-in-time state of this RawNode.
+func (rn *RawNode) Ready() Ready {
+	currentSoftState := rn.softState()
+	softState := currentSoftState
 
 	if rn.PrevSoftState != nil && *softState == *rn.PrevSoftState {
 		softState = nil
 	}
 
-	cur := &pb.HardState{
-		Term:   rn.Raft.Term,
-		Vote:   rn.Raft.Vote,
-		Commit: rn.Raft.RaftLog.committed,
-	}
+	currentHardState := rn.hardState()
 
 	var hardState *pb.HardState
-	if rn.PrevHardState == nil || !isHardStateEqual(cur, rn.PrevHardState) {
-		hardState = cur
+	if rn.PrevHardState == nil || !isHardStateEqual(currentHardState, rn.PrevHardState) {
+		hardState = currentHardState
 	}
 
 	msg := rn.Raft.msgs
@@ -177,8 +186,8 @@ func (rn *RawNode) Ready() Ready {
 		Snapshot:         rn.Raft.RaftLog.pendingSnapshot,
 	}
 
-	rn.PrevHardState = cur
-	rn.PrevSoftState = softState
+	rn.PrevHardState = currentHardState
+	rn.PrevSoftState = currentSoftState
 
 	rn.Raft.msgs = nil
 	return rd
@@ -186,6 +195,14 @@ func (rn *RawNode) Ready() Ready {
 
 // HasReady called when RawNode user need to check if any Ready pending.
 func (rn *RawNode) HasReady() bool {
+	currentSoftState := rn.softState()
+	if rn.PrevSoftState == nil || *currentSoftState != *rn.PrevSoftState {
+		return true
+	}
+	currentHardState := rn.hardState()
+	if rn.PrevHardState == nil || !isHardStateEqual(currentHardState, rn.PrevHardState) {
+		return true
+	}
 	return len(rn.Raft.msgs) > 0 ||
 		len(rn.Raft.RaftLog.unstableEntries()) > 0 ||
 		len(rn.Raft.RaftLog.nextEnts()) > 0 ||
