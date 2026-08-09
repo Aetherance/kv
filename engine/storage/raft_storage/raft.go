@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/Aetherance/kv/proto/pkg/clusterpb"
 	"github.com/Aetherance/kv/proto/pkg/raftpb"
 	"github.com/Aetherance/kv/raft"
 )
@@ -31,12 +32,14 @@ type raftOperation uint8
 const (
 	opStep raftOperation = iota
 	opPropose
+	opProposeConfChange
 )
 
 type raftEvent struct {
 	op      raftOperation
 	message *raftpb.Message
 	data    []byte
+	change  *raftpb.ConfChange
 	done    chan error
 }
 
@@ -91,6 +94,19 @@ func (rs *RaftStorage) handleEvent(event raftEvent) (error, bool) {
 		if err := rs.node.Propose(event.data); err != nil {
 			return err, false
 		}
+	case opProposeConfChange:
+		if rs.node.Raft.State != raft.StateLeader {
+			return &NotLeaderError{LeaderID: rs.node.Raft.Lead}, false
+		}
+		if event.change == nil {
+			return errors.New("raft storage: nil conf change"), false
+		}
+		if err := rs.validateConfChange(event.change); err != nil {
+			return err, false
+		}
+		if err := rs.node.ProposeConfChange(event.change); err != nil {
+			return err, false
+		}
 	default:
 		return errors.New("raft storage: unknown operation"), false
 	}
@@ -126,9 +142,20 @@ func (rs *RaftStorage) handleReady() error {
 				if err := proto.Unmarshal(entry.Data, &change); err != nil {
 					return fmt.Errorf("raft storage: decode conf change at %d: %w", entry.Index, err)
 				}
+				var context clusterpb.ConfChangeContext
+				if err := proto.Unmarshal(change.Context, &context); err != nil {
+					return fmt.Errorf("raft storage: decode conf change context at %d: %w", entry.Index, err)
+				}
+				nextCluster, err := applyClusterChange(rs.state.cluster, &change, &context)
+				if err != nil {
+					return fmt.Errorf("raft storage: update cluster metadata at %d: %w", entry.Index, err)
+				}
 				state := rs.node.ApplyConfChange(&change)
-				if err := rs.state.applyConfChange(entry.Index, state); err != nil {
+				if err := rs.state.applyMembership(entry.Index, state, nextCluster); err != nil {
 					return fmt.Errorf("raft storage: apply conf change at %d: %w", entry.Index, err)
+				}
+				if context.ProposerId == rs.config.StoreID {
+					rs.completePending(context.Sequence, nil)
 				}
 
 			default:
@@ -157,6 +184,10 @@ func (rs *RaftStorage) step(ctx context.Context, message *raftpb.Message) error 
 
 func (rs *RaftStorage) proposeData(ctx context.Context, data []byte) error {
 	return rs.submit(ctx, raftEvent{op: opPropose, data: append([]byte(nil), data...)})
+}
+
+func (rs *RaftStorage) proposeConfChangeData(ctx context.Context, change *raftpb.ConfChange) error {
+	return rs.submit(ctx, raftEvent{op: opProposeConfChange, change: change})
 }
 
 func (rs *RaftStorage) submit(ctx context.Context, event raftEvent) error {

@@ -17,3 +17,11 @@ message ClusterMetadata {
     repeated uint64 removed_member_ids = 3;
     uint64 conf_revision = 4;
 }
+
+// ConfChangeContext is replicated with a raftpb.ConfChange. It carries the
+// application-level member record and identifies the local waiter to complete.
+message ConfChangeContext {
+    uint64 proposer_id = 1;
+    uint64 sequence = 2;
+    Member member = 3;
+}
