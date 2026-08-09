@@ -334,7 +334,7 @@ func (e *raftStatePersistence) loadOrBootstrap(initialPeers []uint64) error {
 		}
 
 		e.hardState = &raftpb.HardState{}
-		e.confState = &raftpb.ConfState{Nodes: peers}
+		e.confState = &raftpb.ConfState{Voters: peers}
 		e.snapshot = &raftpb.Snapshot{Metadata: &raftpb.SnapshotMetadata{ConfState: cloneConfState(e.confState)}}
 		return e.db.Update(func(txn *badger.Txn) error {
 			if err := txn.Set(e.key(initializedSuffix), []byte{1}); err != nil {

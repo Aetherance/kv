@@ -20,7 +20,6 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"sort"
 	"strings"
 
 	pb "github.com/Aetherance/kv/proto/pkg/raftpb"
@@ -57,12 +56,7 @@ func mustTerm(term uint64, err error) uint64 {
 }
 
 func nodes(r *Raft) []uint64 {
-	nodes := make([]uint64, 0, len(r.Prs))
-	for id := range r.Prs {
-		nodes = append(nodes, id)
-	}
-	sort.Sort(uint64Slice(nodes))
-	return nodes
+	return r.Tracker.voterNodes()
 }
 
 func diffu(a, b string) string {

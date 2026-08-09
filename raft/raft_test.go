@@ -1038,7 +1038,7 @@ func TestRestoreSnapshot2C(t *testing.T) {
 		Metadata: &pb.SnapshotMetadata{
 			Index:     11, // magic number
 			Term:      11, // magic number
-			ConfState: &pb.ConfState{Nodes: []uint64{1, 2, 3}},
+			ConfState: &pb.ConfState{Voters: []uint64{1, 2, 3}},
 		},
 	}
 
@@ -1053,8 +1053,8 @@ func TestRestoreSnapshot2C(t *testing.T) {
 		t.Errorf("log.lastTerm = %d, want %d", mustTerm(sm.RaftLog.Term(s.Metadata.Index)), s.Metadata.Term)
 	}
 	sg := nodes(sm)
-	if !reflect.DeepEqual(sg, s.Metadata.ConfState.Nodes) {
-		t.Errorf("sm.Nodes = %+v, want %+v", sg, s.Metadata.ConfState.Nodes)
+	if !reflect.DeepEqual(sg, s.Metadata.ConfState.Voters) {
+		t.Errorf("sm.Voters = %+v, want %+v", sg, s.Metadata.ConfState.Voters)
 	}
 }
 
@@ -1071,7 +1071,7 @@ func TestRestoreIgnoreSnapshot2C(t *testing.T) {
 		Metadata: &pb.SnapshotMetadata{
 			Index:     commit,
 			Term:      1,
-			ConfState: &pb.ConfState{Nodes: []uint64{1, 2}},
+			ConfState: &pb.ConfState{Voters: []uint64{1, 2}},
 		},
 	}
 
@@ -1088,7 +1088,7 @@ func TestProvideSnap2C(t *testing.T) {
 		Metadata: &pb.SnapshotMetadata{
 			Index:     11, // magic number
 			Term:      11, // magic number
-			ConfState: &pb.ConfState{Nodes: []uint64{1, 2}},
+			ConfState: &pb.ConfState{Voters: []uint64{1, 2}},
 		},
 	}
 	storage := NewMemoryState()
@@ -1118,7 +1118,7 @@ func TestRestoreFromSnapMsg2C(t *testing.T) {
 		Metadata: &pb.SnapshotMetadata{
 			Index:     11, // magic number
 			Term:      11, // magic number
-			ConfState: &pb.ConfState{Nodes: []uint64{1, 2}},
+			ConfState: &pb.ConfState{Voters: []uint64{1, 2}},
 		},
 	}
 	m := &pb.Message{MsgType: pb.MessageType_MsgSnapshot, From: 1, Term: 2, Snapshot: &s}
@@ -1136,7 +1136,7 @@ func TestRestoreFromSnapWithOverlapingPeersMsg2C(t *testing.T) {
 		Metadata: &pb.SnapshotMetadata{
 			Index:     11, // magic number
 			Term:      11, // magic number
-			ConfState: &pb.ConfState{Nodes: []uint64{2, 3, 4}},
+			ConfState: &pb.ConfState{Voters: []uint64{2, 3, 4}},
 		},
 	}
 	m := &pb.Message{MsgType: pb.MessageType_MsgSnapshot, From: 1, Term: 2, Snapshot: &s}
@@ -1148,7 +1148,7 @@ func TestRestoreFromSnapWithOverlapingPeersMsg2C(t *testing.T) {
 		t.Errorf("sm.Lead = %d, want 1", sm.Lead)
 	}
 
-	nodes := s.Metadata.ConfState.Nodes
+	nodes := s.Metadata.ConfState.Voters
 	if len(nodes) != len(sm.Prs) {
 		t.Errorf("len(sm.Prs) = %d, want %d", len(sm.Prs), len(nodes))
 	}
@@ -1170,7 +1170,7 @@ func TestSlowNodeRestore2C(t *testing.T) {
 	}
 	lead := nt.peers[1].(*Raft)
 	nextEnts(lead, nt.storage[1])
-	nt.storage[1].CreateSnapshot(lead.RaftLog.applied, &pb.ConfState{Nodes: nodes(lead)}, nil)
+	nt.storage[1].CreateSnapshot(lead.RaftLog.applied, &pb.ConfState{Voters: nodes(lead)}, nil)
 	nt.storage[1].Compact(lead.RaftLog.applied)
 
 	nt.recover()

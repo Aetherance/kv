@@ -83,7 +83,7 @@ func TestRawNodeRestart2AC(t *testing.T) {
 func TestRawNodeRestartFromSnapshot2C(t *testing.T) {
 	snap := pb.Snapshot{
 		Metadata: &pb.SnapshotMetadata{
-			ConfState: &pb.ConfState{Nodes: []uint64{1, 2}},
+			ConfState: &pb.ConfState{Voters: []uint64{1, 2}},
 			Index:     2,
 			Term:      1,
 		},
