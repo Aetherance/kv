@@ -38,14 +38,16 @@ type requestID struct {
 	sequence uint64
 }
 
-// RaftStorage runs one local replica of a fixed Raft-backed KV storage.
+// RaftStorage runs one local replica of the Raft-backed KV and membership
+// state machines.
 type RaftStorage struct {
 	rspb.UnimplementedRaftServiceServer
 
-	config *config.Config
-	db     *badger.DB
-	node   *raft.RawNode
-	state  *raftStatePersistence
+	config    *config.Config
+	clusterID uint64
+	db        *badger.DB
+	node      *raft.RawNode
+	state     *raftStatePersistence
 
 	transport *ServerTransport
 	cancel    context.CancelFunc
@@ -163,8 +165,9 @@ func (rs *RaftStorage) Start() error {
 	}
 	rs.state = state
 	rs.node = rawNode
+	rs.clusterID = state.cluster.ClusterId
 
-	rs.transport = NewServerTransport(rs.config)
+	rs.transport = NewServerTransport(rs.clusterID, clusterAddresses(state.cluster))
 	rs.inbox = make(chan raftEvent, 256)
 	rs.done = make(chan struct{})
 	rs.runErr = nil
@@ -231,13 +234,16 @@ func (rs *RaftStorage) Raft(stream rspb.RaftService_RaftServer) error {
 		if err != nil {
 			return err
 		}
-		if message == nil {
+		if message == nil || message.Message == nil {
 			continue
 		}
-		if message.To != 0 && message.To != rs.config.StoreID {
+		if message.ClusterId != rs.clusterID {
+			return fmt.Errorf("raft storage: cluster ID mismatch: got %d, expected %d", message.ClusterId, rs.clusterID)
+		}
+		if message.Message.To != 0 && message.Message.To != rs.config.StoreID {
 			continue
 		}
-		if err := rs.step(stream.Context(), message); err != nil {
+		if err := rs.step(stream.Context(), message.Message); err != nil {
 			return err
 		}
 	}
@@ -320,6 +326,7 @@ func (rs *RaftStorage) onApplied(data []byte) {
 func (rs *RaftStorage) sendMessages(messages []*raftpb.Message) {
 	for _, message := range messages {
 		if err := rs.transport.Send(message); err != nil {
+			rs.node.ReportSnapshot(message.To, false)
 			log.Printf("send raft message %s from %d to %d: %v", message.MsgType, message.From, message.To, err)
 		}
 	}
