@@ -25,6 +25,7 @@ const (
 	Cluster_MemberRemove_FullMethodName  = "/clusterpb.Cluster/MemberRemove"
 	Cluster_MemberUpdate_FullMethodName  = "/clusterpb.Cluster/MemberUpdate"
 	Cluster_MemberStatus_FullMethodName  = "/clusterpb.Cluster/MemberStatus"
+	Cluster_JoinInfo_FullMethodName      = "/clusterpb.Cluster/JoinInfo"
 )
 
 // ClusterClient is the client API for Cluster service.
@@ -37,6 +38,7 @@ type ClusterClient interface {
 	MemberRemove(ctx context.Context, in *MemberRemoveRequest, opts ...grpc.CallOption) (*MemberRemoveResponse, error)
 	MemberUpdate(ctx context.Context, in *MemberUpdateRequest, opts ...grpc.CallOption) (*MemberUpdateResponse, error)
 	MemberStatus(ctx context.Context, in *MemberStatusRequest, opts ...grpc.CallOption) (*MemberStatusResponse, error)
+	JoinInfo(ctx context.Context, in *JoinInfoRequest, opts ...grpc.CallOption) (*JoinInfoResponse, error)
 }
 
 type clusterClient struct {
@@ -107,6 +109,16 @@ func (c *clusterClient) MemberStatus(ctx context.Context, in *MemberStatusReques
 	return out, nil
 }
 
+func (c *clusterClient) JoinInfo(ctx context.Context, in *JoinInfoRequest, opts ...grpc.CallOption) (*JoinInfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(JoinInfoResponse)
+	err := c.cc.Invoke(ctx, Cluster_JoinInfo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterServer is the server API for Cluster service.
 // All implementations must embed UnimplementedClusterServer
 // for forward compatibility.
@@ -117,6 +129,7 @@ type ClusterServer interface {
 	MemberRemove(context.Context, *MemberRemoveRequest) (*MemberRemoveResponse, error)
 	MemberUpdate(context.Context, *MemberUpdateRequest) (*MemberUpdateResponse, error)
 	MemberStatus(context.Context, *MemberStatusRequest) (*MemberStatusResponse, error)
+	JoinInfo(context.Context, *JoinInfoRequest) (*JoinInfoResponse, error)
 	mustEmbedUnimplementedClusterServer()
 }
 
@@ -144,6 +157,9 @@ func (UnimplementedClusterServer) MemberUpdate(context.Context, *MemberUpdateReq
 }
 func (UnimplementedClusterServer) MemberStatus(context.Context, *MemberStatusRequest) (*MemberStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method MemberStatus not implemented")
+}
+func (UnimplementedClusterServer) JoinInfo(context.Context, *JoinInfoRequest) (*JoinInfoResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method JoinInfo not implemented")
 }
 func (UnimplementedClusterServer) mustEmbedUnimplementedClusterServer() {}
 func (UnimplementedClusterServer) testEmbeddedByValue()                 {}
@@ -274,6 +290,24 @@ func _Cluster_MemberStatus_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Cluster_JoinInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JoinInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServer).JoinInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Cluster_JoinInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServer).JoinInfo(ctx, req.(*JoinInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Cluster_ServiceDesc is the grpc.ServiceDesc for Cluster service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -304,6 +338,10 @@ var Cluster_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "MemberStatus",
 			Handler:    _Cluster_MemberStatus_Handler,
+		},
+		{
+			MethodName: "JoinInfo",
+			Handler:    _Cluster_JoinInfo_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

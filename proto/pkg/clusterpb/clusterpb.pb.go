@@ -427,10 +427,12 @@ func (x *MemberListResponse) GetMembers() []*MemberInfo {
 }
 
 type MemberAddRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	RaftAddress   string                 `protobuf:"bytes,2,opt,name=raft_address,json=raftAddress,proto3" json:"raft_address,omitempty"`
-	Learner       bool                   `protobuf:"varint,3,opt,name=learner,proto3" json:"learner,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Id          uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	RaftAddress string                 `protobuf:"bytes,2,opt,name=raft_address,json=raftAddress,proto3" json:"raft_address,omitempty"`
+	// The first implementation accepts learner additions only. Keeping this
+	// field makes an explicit unsafe/direct voter mode possible later.
+	Learner       bool `protobuf:"varint,3,opt,name=learner,proto3" json:"learner,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -906,6 +908,118 @@ func (x *MemberStatusResponse) GetMember() *MemberInfo {
 	return nil
 }
 
+type JoinInfoRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	RaftAddress   string                 `protobuf:"bytes,2,opt,name=raft_address,json=raftAddress,proto3" json:"raft_address,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JoinInfoRequest) Reset() {
+	*x = JoinInfoRequest{}
+	mi := &file_clusterpb_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JoinInfoRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JoinInfoRequest) ProtoMessage() {}
+
+func (x *JoinInfoRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JoinInfoRequest.ProtoReflect.Descriptor instead.
+func (*JoinInfoRequest) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *JoinInfoRequest) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *JoinInfoRequest) GetRaftAddress() string {
+	if x != nil {
+		return x.RaftAddress
+	}
+	return ""
+}
+
+type JoinInfoResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     uint64                 `protobuf:"varint,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	LeaderId      uint64                 `protobuf:"varint,2,opt,name=leader_id,json=leaderId,proto3" json:"leader_id,omitempty"`
+	Members       []*Member              `protobuf:"bytes,3,rep,name=members,proto3" json:"members,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JoinInfoResponse) Reset() {
+	*x = JoinInfoResponse{}
+	mi := &file_clusterpb_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JoinInfoResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JoinInfoResponse) ProtoMessage() {}
+
+func (x *JoinInfoResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JoinInfoResponse.ProtoReflect.Descriptor instead.
+func (*JoinInfoResponse) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *JoinInfoResponse) GetClusterId() uint64 {
+	if x != nil {
+		return x.ClusterId
+	}
+	return 0
+}
+
+func (x *JoinInfoResponse) GetLeaderId() uint64 {
+	if x != nil {
+		return x.LeaderId
+	}
+	return 0
+}
+
+func (x *JoinInfoResponse) GetMembers() []*Member {
+	if x != nil {
+		return x.Members
+	}
+	return nil
+}
+
 var File_clusterpb_proto protoreflect.FileDescriptor
 
 const file_clusterpb_proto_rawDesc = "" +
@@ -963,12 +1077,20 @@ const file_clusterpb_proto_rawDesc = "" +
 	"\x14MemberStatusResponse\x12\x1b\n" +
 	"\tleader_id\x18\x01 \x01(\x04R\bleaderId\x12!\n" +
 	"\fcommit_index\x18\x02 \x01(\x04R\vcommitIndex\x12-\n" +
-	"\x06member\x18\x03 \x01(\v2\x15.clusterpb.MemberInfoR\x06member*O\n" +
+	"\x06member\x18\x03 \x01(\v2\x15.clusterpb.MemberInfoR\x06member\"D\n" +
+	"\x0fJoinInfoRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12!\n" +
+	"\fraft_address\x18\x02 \x01(\tR\vraftAddress\"{\n" +
+	"\x10JoinInfoResponse\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\x04R\tclusterId\x12\x1b\n" +
+	"\tleader_id\x18\x02 \x01(\x04R\bleaderId\x12+\n" +
+	"\amembers\x18\x03 \x03(\v2\x11.clusterpb.MemberR\amembers*O\n" +
 	"\n" +
 	"MemberRole\x12\x15\n" +
 	"\x11MemberRoleUnknown\x10\x00\x12\x13\n" +
 	"\x0fMemberRoleVoter\x10\x01\x12\x15\n" +
-	"\x11MemberRoleLearner\x10\x022\xef\x03\n" +
+	"\x11MemberRoleLearner\x10\x022\xb6\x04\n" +
 	"\aCluster\x12K\n" +
 	"\n" +
 	"MemberList\x12\x1c.clusterpb.MemberListRequest\x1a\x1d.clusterpb.MemberListResponse\"\x00\x12H\n" +
@@ -976,7 +1098,8 @@ const file_clusterpb_proto_rawDesc = "" +
 	"\rMemberPromote\x12\x1f.clusterpb.MemberPromoteRequest\x1a .clusterpb.MemberPromoteResponse\"\x00\x12Q\n" +
 	"\fMemberRemove\x12\x1e.clusterpb.MemberRemoveRequest\x1a\x1f.clusterpb.MemberRemoveResponse\"\x00\x12Q\n" +
 	"\fMemberUpdate\x12\x1e.clusterpb.MemberUpdateRequest\x1a\x1f.clusterpb.MemberUpdateResponse\"\x00\x12Q\n" +
-	"\fMemberStatus\x12\x1e.clusterpb.MemberStatusRequest\x1a\x1f.clusterpb.MemberStatusResponse\"\x00B8Z6github.com/Aetherance/kv/proto/pkg/clusterpb;clusterpbb\x06proto3"
+	"\fMemberStatus\x12\x1e.clusterpb.MemberStatusRequest\x1a\x1f.clusterpb.MemberStatusResponse\"\x00\x12E\n" +
+	"\bJoinInfo\x12\x1a.clusterpb.JoinInfoRequest\x1a\x1b.clusterpb.JoinInfoResponse\"\x00B8Z6github.com/Aetherance/kv/proto/pkg/clusterpb;clusterpbb\x06proto3"
 
 var (
 	file_clusterpb_proto_rawDescOnce sync.Once
@@ -991,7 +1114,7 @@ func file_clusterpb_proto_rawDescGZIP() []byte {
 }
 
 var file_clusterpb_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_clusterpb_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_clusterpb_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_clusterpb_proto_goTypes = []any{
 	(MemberRole)(0),               // 0: clusterpb.MemberRole
 	(*Member)(nil),                // 1: clusterpb.Member
@@ -1010,6 +1133,8 @@ var file_clusterpb_proto_goTypes = []any{
 	(*MemberUpdateResponse)(nil),  // 14: clusterpb.MemberUpdateResponse
 	(*MemberStatusRequest)(nil),   // 15: clusterpb.MemberStatusRequest
 	(*MemberStatusResponse)(nil),  // 16: clusterpb.MemberStatusResponse
+	(*JoinInfoRequest)(nil),       // 17: clusterpb.JoinInfoRequest
+	(*JoinInfoResponse)(nil),      // 18: clusterpb.JoinInfoResponse
 }
 var file_clusterpb_proto_depIdxs = []int32{
 	1,  // 0: clusterpb.ClusterMetadata.members:type_name -> clusterpb.Member
@@ -1022,23 +1147,26 @@ var file_clusterpb_proto_depIdxs = []int32{
 	6,  // 7: clusterpb.MemberRemoveResponse.cluster:type_name -> clusterpb.MemberListResponse
 	6,  // 8: clusterpb.MemberUpdateResponse.cluster:type_name -> clusterpb.MemberListResponse
 	4,  // 9: clusterpb.MemberStatusResponse.member:type_name -> clusterpb.MemberInfo
-	5,  // 10: clusterpb.Cluster.MemberList:input_type -> clusterpb.MemberListRequest
-	7,  // 11: clusterpb.Cluster.MemberAdd:input_type -> clusterpb.MemberAddRequest
-	9,  // 12: clusterpb.Cluster.MemberPromote:input_type -> clusterpb.MemberPromoteRequest
-	11, // 13: clusterpb.Cluster.MemberRemove:input_type -> clusterpb.MemberRemoveRequest
-	13, // 14: clusterpb.Cluster.MemberUpdate:input_type -> clusterpb.MemberUpdateRequest
-	15, // 15: clusterpb.Cluster.MemberStatus:input_type -> clusterpb.MemberStatusRequest
-	6,  // 16: clusterpb.Cluster.MemberList:output_type -> clusterpb.MemberListResponse
-	8,  // 17: clusterpb.Cluster.MemberAdd:output_type -> clusterpb.MemberAddResponse
-	10, // 18: clusterpb.Cluster.MemberPromote:output_type -> clusterpb.MemberPromoteResponse
-	12, // 19: clusterpb.Cluster.MemberRemove:output_type -> clusterpb.MemberRemoveResponse
-	14, // 20: clusterpb.Cluster.MemberUpdate:output_type -> clusterpb.MemberUpdateResponse
-	16, // 21: clusterpb.Cluster.MemberStatus:output_type -> clusterpb.MemberStatusResponse
-	16, // [16:22] is the sub-list for method output_type
-	10, // [10:16] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	1,  // 10: clusterpb.JoinInfoResponse.members:type_name -> clusterpb.Member
+	5,  // 11: clusterpb.Cluster.MemberList:input_type -> clusterpb.MemberListRequest
+	7,  // 12: clusterpb.Cluster.MemberAdd:input_type -> clusterpb.MemberAddRequest
+	9,  // 13: clusterpb.Cluster.MemberPromote:input_type -> clusterpb.MemberPromoteRequest
+	11, // 14: clusterpb.Cluster.MemberRemove:input_type -> clusterpb.MemberRemoveRequest
+	13, // 15: clusterpb.Cluster.MemberUpdate:input_type -> clusterpb.MemberUpdateRequest
+	15, // 16: clusterpb.Cluster.MemberStatus:input_type -> clusterpb.MemberStatusRequest
+	17, // 17: clusterpb.Cluster.JoinInfo:input_type -> clusterpb.JoinInfoRequest
+	6,  // 18: clusterpb.Cluster.MemberList:output_type -> clusterpb.MemberListResponse
+	8,  // 19: clusterpb.Cluster.MemberAdd:output_type -> clusterpb.MemberAddResponse
+	10, // 20: clusterpb.Cluster.MemberPromote:output_type -> clusterpb.MemberPromoteResponse
+	12, // 21: clusterpb.Cluster.MemberRemove:output_type -> clusterpb.MemberRemoveResponse
+	14, // 22: clusterpb.Cluster.MemberUpdate:output_type -> clusterpb.MemberUpdateResponse
+	16, // 23: clusterpb.Cluster.MemberStatus:output_type -> clusterpb.MemberStatusResponse
+	18, // 24: clusterpb.Cluster.JoinInfo:output_type -> clusterpb.JoinInfoResponse
+	18, // [18:25] is the sub-list for method output_type
+	11, // [11:18] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_clusterpb_proto_init() }
@@ -1052,7 +1180,7 @@ func file_clusterpb_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_clusterpb_proto_rawDesc), len(file_clusterpb_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   16,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

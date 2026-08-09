@@ -66,7 +66,7 @@ func TestClusterMetadataSurvivesSnapshotAndRestart(t *testing.T) {
 func TestApplyMembershipPersistsConfStateAndMetadata(t *testing.T) {
 	db := openTestDB(t)
 	initial := mustInitialCluster(t, 42, map[uint64]string{1: "127.0.0.1:1"})
-	state, err := openRaftStatePersistence(db, initial)
+	state, err := openRaftStatePersistence(db, initial, false)
 	if err != nil {
 		t.Fatalf("bootstrap state: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestApplyMembershipPersistsConfStateAndMetadata(t *testing.T) {
 		t.Fatalf("apply membership: %v", err)
 	}
 
-	loaded, err := openRaftStatePersistence(db, mustInitialCluster(t, 99, map[uint64]string{1: "ignored"}))
+	loaded, err := openRaftStatePersistence(db, mustInitialCluster(t, 99, map[uint64]string{1: "ignored"}), false)
 	if err != nil {
 		t.Fatalf("reload state: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestLegacyStateMigratesClusterMetadata(t *testing.T) {
 	}
 
 	initial := mustInitialCluster(t, 42, map[uint64]string{1: "127.0.0.1:1"})
-	loaded, err := openRaftStatePersistence(db, initial)
+	loaded, err := openRaftStatePersistence(db, initial, false)
 	if err != nil {
 		t.Fatalf("migrate state: %v", err)
 	}
