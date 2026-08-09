@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package clusterpb;
+
+option go_package = "github.com/Aetherance/kv/proto/pkg/clusterpb;clusterpb";
+
+message Member {
+    uint64 id = 1;
+    string raft_address = 2;
+}
+
+// ClusterMetadata is the durable application-level membership registry. Raft
+// voting roles remain authoritative in raftpb.ConfState.
+message ClusterMetadata {
+    uint64 cluster_id = 1;
+    repeated Member members = 2;
+    repeated uint64 removed_member_ids = 3;
+    uint64 conf_revision = 4;
+}

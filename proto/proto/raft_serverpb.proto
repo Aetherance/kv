@@ -2,6 +2,7 @@ syntax = "proto3";
 package raft_serverpb;
 
 import "raftpb.proto";
+import "clusterpb.proto";
 
 option go_package = "github.com/Aetherance/kv/proto/pkg/raft_serverpb;raft_serverpb";
 
@@ -15,6 +16,7 @@ message RaftSnapshotData {
     reserved "region", "file_size", "meta";
 
     repeated KeyValue data = 3;
+    clusterpb.ClusterMetadata cluster = 4;
 }
 
 message Done {}

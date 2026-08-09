@@ -4,11 +4,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"sort"
 
 	badger "github.com/dgraph-io/badger/v4"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/Aetherance/kv/proto/pkg/clusterpb"
 	"github.com/Aetherance/kv/proto/pkg/raftpb"
 	"github.com/Aetherance/kv/raft"
 )
@@ -23,6 +23,7 @@ type raftStatePersistence struct {
 
 	hardState    *raftpb.HardState
 	confState    *raftpb.ConfState
+	cluster      *clusterpb.ClusterMetadata
 	snapshot     *raftpb.Snapshot
 	appliedIndex uint64
 	lastIndex    uint64
@@ -32,18 +33,19 @@ var (
 	initializedSuffix = []byte("meta/initialized")
 	hardStateSuffix   = []byte("meta/hard-state")
 	confStateSuffix   = []byte("meta/conf-state")
+	clusterSuffix     = []byte("meta/cluster")
 	snapshotSuffix    = []byte("meta/snapshot")
 	appliedSuffix     = []byte("meta/applied-index")
 	lastIndexSuffix   = []byte("meta/last-index")
 	logSuffix         = []byte("log/")
 )
 
-func openRaftStatePersistence(db *badger.DB, initialPeers []uint64) (*raftStatePersistence, error) {
+func openRaftStatePersistence(db *badger.DB, initialCluster *clusterpb.ClusterMetadata) (*raftStatePersistence, error) {
 	if db == nil {
 		return nil, errors.New("raft storage: nil badger database")
 	}
 	state := &raftStatePersistence{db: db}
-	if err := state.loadOrBootstrap(initialPeers); err != nil {
+	if err := state.loadOrBootstrap(initialCluster); err != nil {
 		return nil, err
 	}
 	if state.appliedIndex > state.hardState.Commit {
@@ -140,6 +142,7 @@ func (e *raftStatePersistence) persist(ready *raft.Ready) error {
 
 	nextHard := cloneHardState(e.hardState)
 	nextConf := cloneConfState(e.confState)
+	nextCluster := cloneClusterMetadata(e.cluster)
 	nextSnapshot := cloneSnapshot(e.snapshot)
 	nextApplied := e.appliedIndex
 	nextLast := e.lastIndex
@@ -150,20 +153,28 @@ func (e *raftStatePersistence) persist(ready *raft.Ready) error {
 			if snapshot.Metadata.Index <= nextSnapshot.Metadata.Index {
 				return raft.ErrSnapOutOfDate
 			}
-			if err := restoreKVSnapshot(txn, snapshot.Data); err != nil {
+			restoredCluster, err := restoreKVSnapshot(txn, snapshot.Data)
+			if err != nil {
 				return err
+			}
+			if err := validateClusterMetadata(restoredCluster); err != nil {
+				return fmt.Errorf("raft storage: invalid snapshot cluster metadata: %w", err)
 			}
 			if err := e.deleteAllLogs(txn); err != nil {
 				return err
 			}
 			nextSnapshot = cloneSnapshot(snapshot)
 			nextConf = cloneConfState(snapshot.Metadata.ConfState)
+			nextCluster = restoredCluster
 			nextApplied = snapshot.Metadata.Index
 			nextLast = snapshot.Metadata.Index
 			if err := setProto(txn, e.key(snapshotSuffix), nextSnapshot); err != nil {
 				return err
 			}
 			if err := setProto(txn, e.key(confStateSuffix), nextConf); err != nil {
+				return err
+			}
+			if err := setProto(txn, e.key(clusterSuffix), nextCluster); err != nil {
 				return err
 			}
 			if err := setUint64(txn, e.key(appliedSuffix), nextApplied); err != nil {
@@ -208,6 +219,7 @@ func (e *raftStatePersistence) persist(ready *raft.Ready) error {
 
 	e.hardState = nextHard
 	e.confState = nextConf
+	e.cluster = nextCluster
 	e.snapshot = nextSnapshot
 	e.appliedIndex = nextApplied
 	e.lastIndex = nextLast
@@ -245,12 +257,26 @@ func (e *raftStatePersistence) markApplied(index uint64) error {
 }
 
 func (e *raftStatePersistence) applyConfChange(index uint64, state *raftpb.ConfState) error {
+	return e.applyMembership(index, state, e.cluster)
+}
+
+// applyMembership advances ConfState and its application-level member registry
+// atomically at the same committed log index.
+func (e *raftStatePersistence) applyMembership(index uint64, state *raftpb.ConfState, cluster *clusterpb.ClusterMetadata) error {
 	if err := e.checkNextApplied(index); err != nil {
 		return err
 	}
 	state = cloneConfState(state)
+	cluster = cloneClusterMetadata(cluster)
+	normalizeClusterMetadata(cluster)
+	if err := validateClusterMetadata(cluster); err != nil {
+		return err
+	}
 	if err := e.db.Update(func(txn *badger.Txn) error {
 		if err := setProto(txn, e.key(confStateSuffix), state); err != nil {
+			return err
+		}
+		if err := setProto(txn, e.key(clusterSuffix), cluster); err != nil {
 			return err
 		}
 		return setUint64(txn, e.key(appliedSuffix), index)
@@ -258,6 +284,7 @@ func (e *raftStatePersistence) applyConfChange(index uint64, state *raftpb.ConfS
 		return err
 	}
 	e.confState = state
+	e.cluster = cluster
 	e.appliedIndex = index
 	return nil
 }
@@ -278,7 +305,7 @@ func (e *raftStatePersistence) maybeCompact(threshold uint64) error {
 	var data []byte
 	if err := e.db.View(func(txn *badger.Txn) error {
 		var captureErr error
-		data, captureErr = captureKVSnapshot(txn)
+		data, captureErr = captureKVSnapshot(txn, e.cluster)
 		return captureErr
 	}); err != nil {
 		return err
@@ -316,25 +343,22 @@ func (e *raftStatePersistence) checkNextApplied(index uint64) error {
 	return nil
 }
 
-func (e *raftStatePersistence) loadOrBootstrap(initialPeers []uint64) error {
+func (e *raftStatePersistence) loadOrBootstrap(initialCluster *clusterpb.ClusterMetadata) error {
 	err := e.db.View(func(txn *badger.Txn) error {
 		_, err := txn.Get(e.key(initializedSuffix))
 		return err
 	})
 	if err == badger.ErrKeyNotFound {
-		peers := append([]uint64(nil), initialPeers...)
-		sort.Slice(peers, func(i, j int) bool { return peers[i] < peers[j] })
-		for i, peer := range peers {
-			if peer == 0 || (i > 0 && peer == peers[i-1]) {
-				return fmt.Errorf("raft storage: invalid initial peers %v", initialPeers)
-			}
-		}
-		if len(peers) == 0 {
-			return errors.New("raft storage: initial peers are required for a new database")
+		if err := validateClusterMetadata(initialCluster); err != nil {
+			return err
 		}
 
 		e.hardState = &raftpb.HardState{}
-		e.confState = &raftpb.ConfState{Voters: peers}
+		e.cluster = cloneClusterMetadata(initialCluster)
+		e.confState = &raftpb.ConfState{}
+		for _, member := range e.cluster.Members {
+			e.confState.Voters = append(e.confState.Voters, member.Id)
+		}
 		e.snapshot = &raftpb.Snapshot{Metadata: &raftpb.SnapshotMetadata{ConfState: cloneConfState(e.confState)}}
 		return e.db.Update(func(txn *badger.Txn) error {
 			if err := txn.Set(e.key(initializedSuffix), []byte{1}); err != nil {
@@ -344,6 +368,9 @@ func (e *raftStatePersistence) loadOrBootstrap(initialPeers []uint64) error {
 				return err
 			}
 			if err := setProto(txn, e.key(confStateSuffix), e.confState); err != nil {
+				return err
+			}
+			if err := setProto(txn, e.key(clusterSuffix), e.cluster); err != nil {
 				return err
 			}
 			if err := setProto(txn, e.key(snapshotSuffix), e.snapshot); err != nil {
@@ -359,7 +386,7 @@ func (e *raftStatePersistence) loadOrBootstrap(initialPeers []uint64) error {
 		return err
 	}
 
-	return e.db.View(func(txn *badger.Txn) error {
+	err = e.db.View(func(txn *badger.Txn) error {
 		e.hardState = new(raftpb.HardState)
 		if err := getProto(txn, e.key(hardStateSuffix), e.hardState); err != nil {
 			return err
@@ -379,6 +406,30 @@ func (e *raftStatePersistence) loadOrBootstrap(initialPeers []uint64) error {
 		e.lastIndex, err = getUint64(txn, e.key(lastIndexSuffix))
 		return err
 	})
+	if err != nil {
+		return err
+	}
+
+	// Migrate databases created before ClusterMetadata existed. ConfState stays
+	// authoritative for voting roles; the bootstrap configuration supplies the
+	// address registry exactly once.
+	e.cluster = new(clusterpb.ClusterMetadata)
+	err = e.db.View(func(txn *badger.Txn) error {
+		return getProto(txn, e.key(clusterSuffix), e.cluster)
+	})
+	if err == badger.ErrKeyNotFound {
+		if err := validateClusterMetadata(initialCluster); err != nil {
+			return fmt.Errorf("raft storage: migrate cluster metadata: %w", err)
+		}
+		e.cluster = cloneClusterMetadata(initialCluster)
+		return e.db.Update(func(txn *badger.Txn) error {
+			return setProto(txn, e.key(clusterSuffix), e.cluster)
+		})
+	}
+	if err != nil {
+		return err
+	}
+	return validateClusterMetadata(e.cluster)
 }
 
 func (e *raftStatePersistence) deleteAllLogs(txn *badger.Txn) error {
