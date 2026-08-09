@@ -25,3 +25,79 @@ message ConfChangeContext {
     uint64 sequence = 2;
     Member member = 3;
 }
+
+enum MemberRole {
+    MemberRoleUnknown = 0;
+    MemberRoleVoter = 1;
+    MemberRoleLearner = 2;
+}
+
+message MemberInfo {
+    Member member = 1;
+    MemberRole role = 2;
+    bool active = 3;
+    uint64 match_index = 4;
+}
+
+message MemberListRequest {}
+
+message MemberListResponse {
+    uint64 cluster_id = 1;
+    uint64 leader_id = 2;
+    uint64 conf_revision = 3;
+    repeated MemberInfo members = 4;
+}
+
+message MemberAddRequest {
+    uint64 id = 1;
+    string raft_address = 2;
+    bool learner = 3;
+}
+
+message MemberAddResponse {
+    MemberListResponse cluster = 1;
+}
+
+message MemberPromoteRequest {
+    uint64 id = 1;
+}
+
+message MemberPromoteResponse {
+    MemberListResponse cluster = 1;
+}
+
+message MemberRemoveRequest {
+    uint64 id = 1;
+}
+
+message MemberRemoveResponse {
+    MemberListResponse cluster = 1;
+}
+
+message MemberUpdateRequest {
+    uint64 id = 1;
+    string raft_address = 2;
+}
+
+message MemberUpdateResponse {
+    MemberListResponse cluster = 1;
+}
+
+message MemberStatusRequest {
+    uint64 id = 1;
+}
+
+message MemberStatusResponse {
+    uint64 leader_id = 1;
+    uint64 commit_index = 2;
+    MemberInfo member = 3;
+}
+
+service Cluster {
+    rpc MemberList(MemberListRequest) returns (MemberListResponse) {}
+    rpc MemberAdd(MemberAddRequest) returns (MemberAddResponse) {}
+    rpc MemberPromote(MemberPromoteRequest) returns (MemberPromoteResponse) {}
+    rpc MemberRemove(MemberRemoveRequest) returns (MemberRemoveResponse) {}
+    rpc MemberUpdate(MemberUpdateRequest) returns (MemberUpdateResponse) {}
+    rpc MemberStatus(MemberStatusRequest) returns (MemberStatusResponse) {}
+}

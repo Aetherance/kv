@@ -2,6 +2,7 @@ package raft_storage
 
 import (
 	"context"
+	cryptorand "crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -42,6 +43,7 @@ type requestID struct {
 // state machines.
 type RaftStorage struct {
 	rspb.UnimplementedRaftServiceServer
+	clusterpb.UnimplementedClusterServer
 
 	config    *config.Config
 	clusterID uint64
@@ -166,6 +168,12 @@ func (rs *RaftStorage) Start() error {
 	rs.state = state
 	rs.node = rawNode
 	rs.clusterID = state.cluster.ClusterId
+	seed, err := proposalSequenceSeed()
+	if err != nil {
+		cleanup()
+		return fmt.Errorf("raft storage: initialize proposal sequence: %w", err)
+	}
+	rs.sequence.Store(seed)
 
 	rs.transport = NewServerTransport(rs.clusterID, clusterAddresses(state.cluster))
 	rs.inbox = make(chan raftEvent, 256)
@@ -375,6 +383,15 @@ func decodeProposal(data []byte) (requestID, []byte, error) {
 		nodeID:   binary.BigEndian.Uint64(data[4:12]),
 		sequence: binary.BigEndian.Uint64(data[12:20]),
 	}, data[20:], nil
+}
+
+func proposalSequenceSeed() (uint64, error) {
+	var encoded [8]byte
+	if _, err := cryptorand.Read(encoded[:]); err != nil {
+		return 0, err
+	}
+	// Keep enough headroom that a process cannot realistically wrap the counter.
+	return binary.BigEndian.Uint64(encoded[:]) & ((uint64(1) << 62) - 1), nil
 }
 
 func captureKVSnapshot(txn *badger.Txn, cluster *clusterpb.ClusterMetadata) ([]byte, error) {
