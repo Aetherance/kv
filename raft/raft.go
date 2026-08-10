@@ -69,6 +69,14 @@ type Config struct {
 	// Applied. If Applied is unset when restarting, raft might return previous
 	// applied entries. This is a very application dependent configuration.
 	Applied uint64
+
+	// CheckQuorum makes a leader step down when it cannot confirm that a
+	// majority of voters have been responsive for one election timeout.
+	CheckQuorum bool
+	// LeaderLease allows a leader that has recently confirmed a quorum to serve
+	// ReadIndex requests without an additional heartbeat round. It requires
+	// CheckQuorum so a partitioned leader stops serving reads promptly.
+	LeaderLease bool
 }
 
 func (c *Config) validate() error {
@@ -88,13 +96,18 @@ func (c *Config) validate() error {
 		return errors.New("persistent state cannot be nil")
 	}
 
+	if c.LeaderLease && !c.CheckQuorum {
+		return errors.New("leader lease requires check quorum")
+	}
+
 	return nil
 }
 
 // Progress represents a follower’s progress in the view of the leader. Leader maintains
 // progresses of all followers, and sends entries to the follower based on its progress.
 type Progress struct {
-	Match, Next uint64
+	Match, Next  uint64
+	RecentActive bool
 }
 
 type Raft struct {
@@ -153,6 +166,11 @@ type Raft struct {
 	readOnly                 *readOnly
 	pendingReadIndexMessages []*pb.Message
 	readStates               []ReadState
+
+	checkQuorum        bool
+	leaderLease        bool
+	leaderLeaseElapsed int
+	leaderLeaseAcks    map[uint64]struct{}
 }
 
 // newRaft return a raft peer with the given config
@@ -194,6 +212,9 @@ func newRaft(c *Config) *Raft {
 		votes:                 make(map[uint64]bool),
 		msgs:                  make([]*pb.Message, 0),
 		readOnly:              newReadOnly(),
+		checkQuorum:           c.CheckQuorum,
+		leaderLease:           c.LeaderLease,
+		leaderLeaseAcks:       make(map[uint64]struct{}),
 		heartbeatTimeout:      c.HeartbeatTick,
 		electionTimeout:       c.ElectionTick,
 		randomElectionTimeout: randElectionTimeout,
@@ -260,6 +281,20 @@ func (r *Raft) tick() {
 			r.campaign()
 		}
 	case StateLeader:
+		if r.checkQuorum {
+			r.electionElapsed++
+			if r.electionElapsed >= r.electionTimeout {
+				r.electionElapsed = 0
+				if !r.quorumActive() {
+					r.becomeFollower(r.Term, None)
+					return
+				}
+				r.resetRecentActive()
+			}
+		}
+		if r.leaderLease && r.leaderLeaseElapsed < r.electionTimeout {
+			r.leaderLeaseElapsed++
+		}
 		r.heartbeatElapsed++
 		if r.heartbeatElapsed >= r.heartbeatTimeout {
 			r.bcastHeartbeat(nil)
@@ -313,6 +348,7 @@ func (r *Raft) becomeFollower(term uint64, lead uint64) {
 	r.Lead = lead
 	r.electionElapsed = 0
 	r.randomElectionTimeout = r.electionTimeout + rand.Intn(r.electionTimeout)
+	r.resetLeaderLease()
 	r.resetReadIndex()
 }
 
@@ -325,6 +361,7 @@ func (r *Raft) becomePreCandidate() {
 	r.votes[r.id] = true
 	r.electionElapsed = 0
 	r.randomElectionTimeout = r.electionTimeout + rand.Intn(r.electionTimeout)
+	r.resetLeaderLease()
 	r.resetReadIndex()
 }
 
@@ -337,6 +374,7 @@ func (r *Raft) becomeCandidate() {
 	r.votes[r.id] = true
 	r.electionElapsed = 0
 	r.randomElectionTimeout = r.electionTimeout + rand.Intn(r.electionTimeout)
+	r.resetLeaderLease()
 	r.resetReadIndex()
 }
 
@@ -347,6 +385,9 @@ func (r *Raft) becomeLeader() {
 	r.State = StateLeader
 	r.Lead = r.id
 	r.heartbeatElapsed = 0
+	r.electionElapsed = 0
+	r.resetRecentActive()
+	r.resetLeaderLease()
 	r.resetReadIndex()
 
 	lastIdx := r.RaftLog.LastIndex()
@@ -377,6 +418,67 @@ func (r *Raft) becomeLeader() {
 	}
 }
 
+func (r *Raft) quorumActive() bool {
+	active := 0
+	for _, progress := range r.Prs {
+		if progress.RecentActive {
+			active++
+		}
+	}
+	return active > len(r.Prs)/2
+}
+
+func (r *Raft) resetRecentActive() {
+	for id, progress := range r.Prs {
+		progress.RecentActive = id == r.id
+	}
+}
+
+func (r *Raft) recordPeerActive(id uint64) {
+	progress := r.Prs[id]
+	if progress == nil {
+		return
+	}
+	progress.RecentActive = true
+	if !r.leaderLease {
+		return
+	}
+	r.leaderLeaseAcks[id] = struct{}{}
+	if len(r.leaderLeaseAcks) > len(r.Prs)/2 {
+		r.leaderLeaseElapsed = 0
+		r.leaderLeaseAcks = map[uint64]struct{}{r.id: {}}
+	}
+}
+
+func (r *Raft) resetLeaderLease() {
+	r.leaderLeaseElapsed = r.electionTimeout
+	r.leaderLeaseAcks = map[uint64]struct{}{r.id: {}}
+}
+
+func (r *Raft) hasLeaderLease() bool {
+	return r.leaderLease && r.State == StateLeader &&
+		r.leaderLeaseElapsed < r.electionTimeout
+}
+
+func (r *Raft) inLeaderLease() bool {
+	return r.checkQuorum && r.Lead != None &&
+		r.electionElapsed < r.electionTimeout
+}
+
+func (r *Raft) rejectVoteForLeaderLease(m *pb.Message) {
+	responseType := pb.MessageType_MsgRequestVoteResponse
+	if m.MsgType == pb.MessageType_MsgPreVote {
+		responseType = pb.MessageType_MsgPreVoteResponse
+	}
+	r.msgs = append(r.msgs, &pb.Message{
+		From:    r.id,
+		To:      m.From,
+		Term:    r.Term,
+		MsgType: responseType,
+		Reject:  true,
+	})
+}
+
 // Step the entrance of handle message, see `MessageType`
 // on `eraftpb.proto` for what msgs should be handled
 func (r *Raft) Step(m *pb.Message) error {
@@ -395,6 +497,13 @@ func (r *Raft) Step(m *pb.Message) error {
 
 	if m.MsgType == pb.MessageType_MsgPropose && r.State == StateLeader {
 		r.handlePropose(m)
+		return nil
+	}
+
+	if m.Term > r.Term &&
+		(m.MsgType == pb.MessageType_MsgRequestVote || m.MsgType == pb.MessageType_MsgPreVote) &&
+		r.inLeaderLease() {
+		r.rejectVoteForLeaderLease(m)
 		return nil
 	}
 
@@ -685,6 +794,7 @@ func (r *Raft) handlePropose(m *pb.Message) {
 }
 
 func (r *Raft) handleAppendResponse(m *pb.Message) {
+	r.recordPeerActive(m.From)
 	success := !m.Reject
 	if success {
 		r.Prs[m.From].Match = m.Index
@@ -725,6 +835,7 @@ func (r *Raft) maybeCommit() bool {
 }
 
 func (r *Raft) handleHeartbeatResponse(m *pb.Message) {
+	r.recordPeerActive(m.From)
 	if len(m.Context) > 0 && r.readOnly.recvAck(m.From, m.Context) > len(r.Prs)/2 {
 		r.completeReadIndex(r.readOnly.advance(m.Context))
 	}
@@ -803,6 +914,10 @@ func (r *Raft) startReadIndex(requests []*pb.Message) {
 		return
 	}
 	if len(r.Prs) == 1 {
+		r.completeReadIndex(r.readOnly.advance(latest))
+		return
+	}
+	if r.hasLeaderLease() {
 		r.completeReadIndex(r.readOnly.advance(latest))
 		return
 	}

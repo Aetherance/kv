@@ -27,10 +27,15 @@ func (ro *readOnly) addRequest(index uint64, request *pb.Message, self uint64) b
 	if _, ok := ro.pending[key]; ok {
 		return false
 	}
-	requestCopy := *request
-	requestCopy.Context = append([]byte(nil), request.Context...)
+	requestCopy := &pb.Message{
+		MsgType: request.MsgType,
+		From:    request.From,
+		To:      request.To,
+		Term:    request.Term,
+		Context: append([]byte(nil), request.Context...),
+	}
 	ro.pending[key] = &readIndexStatus{
-		request: &requestCopy,
+		request: requestCopy,
 		index:   index,
 		acks:    map[uint64]struct{}{self: {}},
 	}

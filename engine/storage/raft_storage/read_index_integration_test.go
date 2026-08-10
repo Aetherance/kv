@@ -63,15 +63,9 @@ func TestFollowerReadIndexReturnsLatestCommittedValue(t *testing.T) {
 		if i == leaderIndex {
 			continue
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		reader, err := follower.Reader(ctx)
-		if err != nil {
-			cancel()
-			t.Fatalf("follower %d reader: %v", i+1, err)
-		}
+		reader := waitForReader(t, follower)
 		value, err := reader.GetCF("default", []byte("key"))
 		reader.Close()
-		cancel()
 		if err != nil {
 			t.Fatalf("follower %d get: %v", i+1, err)
 		}
@@ -79,6 +73,22 @@ func TestFollowerReadIndexReturnsLatestCommittedValue(t *testing.T) {
 			t.Fatalf("follower %d value = %q, want value", i+1, value)
 		}
 	}
+}
+
+func waitForReader(t *testing.T, store *RaftStorage) storage.StorageReader {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+		reader, err := store.Reader(ctx)
+		cancel()
+		if err == nil {
+			return reader
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("follower never learned a leader or completed ReadIndex")
+	return nil
 }
 
 func waitForWritableStore(t *testing.T, stores []*RaftStorage) int {

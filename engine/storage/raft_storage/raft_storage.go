@@ -164,6 +164,8 @@ func (rs *RaftStorage) Start() error {
 		ID:              rs.config.StoreID,
 		ElectionTick:    rs.config.RaftElectionTimeoutTicks,
 		HeartbeatTick:   rs.config.RaftHeartbeatTicks,
+		CheckQuorum:     true,
+		LeaderLease:     true,
 		PersistentState: state,
 		Applied:         state.applied(),
 	})
