@@ -55,6 +55,12 @@ func TestClusterMetadataSurvivesSnapshotAndRestart(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = second.Stop() })
 	assertClusterMetadata(t, second.state.cluster, 42, map[uint64]string{1: "127.0.0.1:1"})
+	second.transport.mu.RLock()
+	routedAddress := second.transport.members[1]
+	second.transport.mu.RUnlock()
+	if routedAddress != "127.0.0.1:1" {
+		t.Fatalf("transport used bootstrap address %q instead of persisted metadata", routedAddress)
+	}
 }
 
 func TestApplyMembershipPersistsConfStateAndMetadata(t *testing.T) {

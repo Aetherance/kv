@@ -21,6 +21,13 @@ message RaftSnapshotData {
 
 message Done {}
 
+// RaftEnvelope prevents messages from a different logical cluster from being
+// accepted by a store that happens to reuse the same member ID.
+message RaftEnvelope {
+    uint64 cluster_id = 1;
+    raftpb.Message message = 2;
+}
+
 service RaftService {
-    rpc Raft(stream raftpb.Message) returns (Done) {}
+    rpc Raft(stream RaftEnvelope) returns (Done) {}
 }

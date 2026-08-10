@@ -32,6 +32,19 @@ const (
 	memberRoleLearner
 )
 
+func clusterAddresses(metadata *clusterpb.ClusterMetadata) map[uint64]string {
+	addresses := make(map[uint64]string)
+	if metadata == nil {
+		return addresses
+	}
+	for _, member := range metadata.Members {
+		if member != nil {
+			addresses[member.Id] = member.RaftAddress
+		}
+	}
+	return addresses
+}
+
 func findMember(metadata *clusterpb.ClusterMetadata, id uint64) (*clusterpb.Member, int) {
 	if metadata == nil {
 		return nil, -1

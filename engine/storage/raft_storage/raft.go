@@ -122,6 +122,9 @@ func (rs *RaftStorage) handleReady() error {
 		if err := rs.state.persist(&ready); err != nil {
 			return fmt.Errorf("raft storage: persist ready: %w", err)
 		}
+		if !raft.IsEmptySnap(ready.Snapshot) {
+			rs.transport.ReplaceMembers(clusterAddresses(rs.state.cluster))
+		}
 
 		for _, entry := range ready.CommittedEntries {
 			switch entry.EntryType {
@@ -154,6 +157,7 @@ func (rs *RaftStorage) handleReady() error {
 				if err := rs.state.applyMembership(entry.Index, state, nextCluster); err != nil {
 					return fmt.Errorf("raft storage: apply conf change at %d: %w", entry.Index, err)
 				}
+				rs.transport.ReplaceMembers(clusterAddresses(nextCluster))
 				if context.ProposerId == rs.config.StoreID {
 					rs.completePending(context.Sequence, nil)
 				}
