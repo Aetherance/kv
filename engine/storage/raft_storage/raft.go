@@ -33,6 +33,7 @@ const (
 	opStep raftOperation = iota
 	opPropose
 	opProposeConfChange
+	opStatus
 )
 
 type raftEvent struct {
@@ -40,12 +41,23 @@ type raftEvent struct {
 	message *raftpb.Message
 	data    []byte
 	change  *raftpb.ConfChange
+	status  *clusterStatus
 	done    chan error
+}
+
+type clusterStatus struct {
+	metadata    *clusterpb.ClusterMetadata
+	confState   *raftpb.ConfState
+	leaderID    uint64
+	commitIndex uint64
+	progress    map[uint64]raft.Progress
 }
 
 func (rs *RaftStorage) run(ctx context.Context) {
 	err := rs.runLoop(ctx)
+	rs.lifecycleMu.Lock()
 	rs.runErr = err
+	rs.lifecycleMu.Unlock()
 
 	pendingErr := err
 	if pendingErr == nil {
@@ -107,6 +119,16 @@ func (rs *RaftStorage) handleEvent(event raftEvent) (error, bool) {
 		if err := rs.node.ProposeConfChange(event.change); err != nil {
 			return err, false
 		}
+	case opStatus:
+		if event.status == nil {
+			return errors.New("raft storage: nil status target"), false
+		}
+		event.status.metadata = cloneClusterMetadata(rs.state.cluster)
+		event.status.confState = rs.node.ConfState()
+		event.status.leaderID = rs.node.LeaderID()
+		event.status.commitIndex = rs.node.CommitIndex()
+		event.status.progress = rs.node.GetProgress()
+		return nil, false
 	default:
 		return errors.New("raft storage: unknown operation"), false
 	}
@@ -194,6 +216,14 @@ func (rs *RaftStorage) proposeConfChangeData(ctx context.Context, change *raftpb
 	return rs.submit(ctx, raftEvent{op: opProposeConfChange, change: change})
 }
 
+func (rs *RaftStorage) status(ctx context.Context) (*clusterStatus, error) {
+	status := new(clusterStatus)
+	if err := rs.submit(ctx, raftEvent{op: opStatus, status: status}); err != nil {
+		return nil, err
+	}
+	return status, nil
+}
+
 func (rs *RaftStorage) submit(ctx context.Context, event raftEvent) error {
 	if rs.inbox == nil || rs.done == nil {
 		return errStopped
@@ -218,6 +248,8 @@ func (rs *RaftStorage) submit(ctx context.Context, event raftEvent) error {
 }
 
 func (rs *RaftStorage) stoppedError() error {
+	rs.lifecycleMu.Lock()
+	defer rs.lifecycleMu.Unlock()
 	if rs.runErr != nil {
 		return rs.runErr
 	}

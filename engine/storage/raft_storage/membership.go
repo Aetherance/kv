@@ -138,6 +138,17 @@ func roleOf(state *raftpb.ConfState, id uint64) raftMemberRole {
 	return memberRoleUnknown
 }
 
+func memberRole(state *raftpb.ConfState, id uint64) clusterpb.MemberRole {
+	switch roleOf(state, id) {
+	case memberRoleVoter:
+		return clusterpb.MemberRole_MemberRoleVoter
+	case memberRoleLearner:
+		return clusterpb.MemberRole_MemberRoleLearner
+	default:
+		return clusterpb.MemberRole_MemberRoleUnknown
+	}
+}
+
 func (rs *RaftStorage) validateConfChange(change *raftpb.ConfChange) error {
 	var context clusterpb.ConfChangeContext
 	if change == nil || proto.Unmarshal(change.GetContext(), &context) != nil || context.Member == nil || context.Member.Id != change.NodeId {

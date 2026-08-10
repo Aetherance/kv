@@ -21,6 +21,55 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type MemberRole int32
+
+const (
+	MemberRole_MemberRoleUnknown MemberRole = 0
+	MemberRole_MemberRoleVoter   MemberRole = 1
+	MemberRole_MemberRoleLearner MemberRole = 2
+)
+
+// Enum value maps for MemberRole.
+var (
+	MemberRole_name = map[int32]string{
+		0: "MemberRoleUnknown",
+		1: "MemberRoleVoter",
+		2: "MemberRoleLearner",
+	}
+	MemberRole_value = map[string]int32{
+		"MemberRoleUnknown": 0,
+		"MemberRoleVoter":   1,
+		"MemberRoleLearner": 2,
+	}
+)
+
+func (x MemberRole) Enum() *MemberRole {
+	p := new(MemberRole)
+	*p = x
+	return p
+}
+
+func (x MemberRole) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MemberRole) Descriptor() protoreflect.EnumDescriptor {
+	return file_clusterpb_proto_enumTypes[0].Descriptor()
+}
+
+func (MemberRole) Type() protoreflect.EnumType {
+	return &file_clusterpb_proto_enumTypes[0]
+}
+
+func (x MemberRole) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MemberRole.Descriptor instead.
+func (MemberRole) EnumDescriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{0}
+}
+
 type Member struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -205,6 +254,658 @@ func (x *ConfChangeContext) GetMember() *Member {
 	return nil
 }
 
+type MemberInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Member        *Member                `protobuf:"bytes,1,opt,name=member,proto3" json:"member,omitempty"`
+	Role          MemberRole             `protobuf:"varint,2,opt,name=role,proto3,enum=clusterpb.MemberRole" json:"role,omitempty"`
+	Active        bool                   `protobuf:"varint,3,opt,name=active,proto3" json:"active,omitempty"`
+	MatchIndex    uint64                 `protobuf:"varint,4,opt,name=match_index,json=matchIndex,proto3" json:"match_index,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberInfo) Reset() {
+	*x = MemberInfo{}
+	mi := &file_clusterpb_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberInfo) ProtoMessage() {}
+
+func (x *MemberInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberInfo.ProtoReflect.Descriptor instead.
+func (*MemberInfo) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *MemberInfo) GetMember() *Member {
+	if x != nil {
+		return x.Member
+	}
+	return nil
+}
+
+func (x *MemberInfo) GetRole() MemberRole {
+	if x != nil {
+		return x.Role
+	}
+	return MemberRole_MemberRoleUnknown
+}
+
+func (x *MemberInfo) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+func (x *MemberInfo) GetMatchIndex() uint64 {
+	if x != nil {
+		return x.MatchIndex
+	}
+	return 0
+}
+
+type MemberListRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberListRequest) Reset() {
+	*x = MemberListRequest{}
+	mi := &file_clusterpb_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberListRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberListRequest) ProtoMessage() {}
+
+func (x *MemberListRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberListRequest.ProtoReflect.Descriptor instead.
+func (*MemberListRequest) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{4}
+}
+
+type MemberListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterId     uint64                 `protobuf:"varint,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	LeaderId      uint64                 `protobuf:"varint,2,opt,name=leader_id,json=leaderId,proto3" json:"leader_id,omitempty"`
+	ConfRevision  uint64                 `protobuf:"varint,3,opt,name=conf_revision,json=confRevision,proto3" json:"conf_revision,omitempty"`
+	Members       []*MemberInfo          `protobuf:"bytes,4,rep,name=members,proto3" json:"members,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberListResponse) Reset() {
+	*x = MemberListResponse{}
+	mi := &file_clusterpb_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberListResponse) ProtoMessage() {}
+
+func (x *MemberListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberListResponse.ProtoReflect.Descriptor instead.
+func (*MemberListResponse) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *MemberListResponse) GetClusterId() uint64 {
+	if x != nil {
+		return x.ClusterId
+	}
+	return 0
+}
+
+func (x *MemberListResponse) GetLeaderId() uint64 {
+	if x != nil {
+		return x.LeaderId
+	}
+	return 0
+}
+
+func (x *MemberListResponse) GetConfRevision() uint64 {
+	if x != nil {
+		return x.ConfRevision
+	}
+	return 0
+}
+
+func (x *MemberListResponse) GetMembers() []*MemberInfo {
+	if x != nil {
+		return x.Members
+	}
+	return nil
+}
+
+type MemberAddRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	RaftAddress   string                 `protobuf:"bytes,2,opt,name=raft_address,json=raftAddress,proto3" json:"raft_address,omitempty"`
+	Learner       bool                   `protobuf:"varint,3,opt,name=learner,proto3" json:"learner,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberAddRequest) Reset() {
+	*x = MemberAddRequest{}
+	mi := &file_clusterpb_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberAddRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberAddRequest) ProtoMessage() {}
+
+func (x *MemberAddRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberAddRequest.ProtoReflect.Descriptor instead.
+func (*MemberAddRequest) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *MemberAddRequest) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *MemberAddRequest) GetRaftAddress() string {
+	if x != nil {
+		return x.RaftAddress
+	}
+	return ""
+}
+
+func (x *MemberAddRequest) GetLearner() bool {
+	if x != nil {
+		return x.Learner
+	}
+	return false
+}
+
+type MemberAddResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cluster       *MemberListResponse    `protobuf:"bytes,1,opt,name=cluster,proto3" json:"cluster,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberAddResponse) Reset() {
+	*x = MemberAddResponse{}
+	mi := &file_clusterpb_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberAddResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberAddResponse) ProtoMessage() {}
+
+func (x *MemberAddResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberAddResponse.ProtoReflect.Descriptor instead.
+func (*MemberAddResponse) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *MemberAddResponse) GetCluster() *MemberListResponse {
+	if x != nil {
+		return x.Cluster
+	}
+	return nil
+}
+
+type MemberPromoteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberPromoteRequest) Reset() {
+	*x = MemberPromoteRequest{}
+	mi := &file_clusterpb_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberPromoteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberPromoteRequest) ProtoMessage() {}
+
+func (x *MemberPromoteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberPromoteRequest.ProtoReflect.Descriptor instead.
+func (*MemberPromoteRequest) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *MemberPromoteRequest) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+type MemberPromoteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cluster       *MemberListResponse    `protobuf:"bytes,1,opt,name=cluster,proto3" json:"cluster,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberPromoteResponse) Reset() {
+	*x = MemberPromoteResponse{}
+	mi := &file_clusterpb_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberPromoteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberPromoteResponse) ProtoMessage() {}
+
+func (x *MemberPromoteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberPromoteResponse.ProtoReflect.Descriptor instead.
+func (*MemberPromoteResponse) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *MemberPromoteResponse) GetCluster() *MemberListResponse {
+	if x != nil {
+		return x.Cluster
+	}
+	return nil
+}
+
+type MemberRemoveRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberRemoveRequest) Reset() {
+	*x = MemberRemoveRequest{}
+	mi := &file_clusterpb_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberRemoveRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberRemoveRequest) ProtoMessage() {}
+
+func (x *MemberRemoveRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberRemoveRequest.ProtoReflect.Descriptor instead.
+func (*MemberRemoveRequest) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *MemberRemoveRequest) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+type MemberRemoveResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cluster       *MemberListResponse    `protobuf:"bytes,1,opt,name=cluster,proto3" json:"cluster,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberRemoveResponse) Reset() {
+	*x = MemberRemoveResponse{}
+	mi := &file_clusterpb_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberRemoveResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberRemoveResponse) ProtoMessage() {}
+
+func (x *MemberRemoveResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberRemoveResponse.ProtoReflect.Descriptor instead.
+func (*MemberRemoveResponse) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *MemberRemoveResponse) GetCluster() *MemberListResponse {
+	if x != nil {
+		return x.Cluster
+	}
+	return nil
+}
+
+type MemberUpdateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	RaftAddress   string                 `protobuf:"bytes,2,opt,name=raft_address,json=raftAddress,proto3" json:"raft_address,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberUpdateRequest) Reset() {
+	*x = MemberUpdateRequest{}
+	mi := &file_clusterpb_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberUpdateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberUpdateRequest) ProtoMessage() {}
+
+func (x *MemberUpdateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberUpdateRequest.ProtoReflect.Descriptor instead.
+func (*MemberUpdateRequest) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *MemberUpdateRequest) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *MemberUpdateRequest) GetRaftAddress() string {
+	if x != nil {
+		return x.RaftAddress
+	}
+	return ""
+}
+
+type MemberUpdateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cluster       *MemberListResponse    `protobuf:"bytes,1,opt,name=cluster,proto3" json:"cluster,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberUpdateResponse) Reset() {
+	*x = MemberUpdateResponse{}
+	mi := &file_clusterpb_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberUpdateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberUpdateResponse) ProtoMessage() {}
+
+func (x *MemberUpdateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberUpdateResponse.ProtoReflect.Descriptor instead.
+func (*MemberUpdateResponse) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *MemberUpdateResponse) GetCluster() *MemberListResponse {
+	if x != nil {
+		return x.Cluster
+	}
+	return nil
+}
+
+type MemberStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberStatusRequest) Reset() {
+	*x = MemberStatusRequest{}
+	mi := &file_clusterpb_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberStatusRequest) ProtoMessage() {}
+
+func (x *MemberStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberStatusRequest.ProtoReflect.Descriptor instead.
+func (*MemberStatusRequest) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *MemberStatusRequest) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+type MemberStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	LeaderId      uint64                 `protobuf:"varint,1,opt,name=leader_id,json=leaderId,proto3" json:"leader_id,omitempty"`
+	CommitIndex   uint64                 `protobuf:"varint,2,opt,name=commit_index,json=commitIndex,proto3" json:"commit_index,omitempty"`
+	Member        *MemberInfo            `protobuf:"bytes,3,opt,name=member,proto3" json:"member,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberStatusResponse) Reset() {
+	*x = MemberStatusResponse{}
+	mi := &file_clusterpb_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberStatusResponse) ProtoMessage() {}
+
+func (x *MemberStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberStatusResponse.ProtoReflect.Descriptor instead.
+func (*MemberStatusResponse) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *MemberStatusResponse) GetLeaderId() uint64 {
+	if x != nil {
+		return x.LeaderId
+	}
+	return 0
+}
+
+func (x *MemberStatusResponse) GetCommitIndex() uint64 {
+	if x != nil {
+		return x.CommitIndex
+	}
+	return 0
+}
+
+func (x *MemberStatusResponse) GetMember() *MemberInfo {
+	if x != nil {
+		return x.Member
+	}
+	return nil
+}
+
 var File_clusterpb_proto protoreflect.FileDescriptor
 
 const file_clusterpb_proto_rawDesc = "" +
@@ -223,7 +924,59 @@ const file_clusterpb_proto_rawDesc = "" +
 	"\vproposer_id\x18\x01 \x01(\x04R\n" +
 	"proposerId\x12\x1a\n" +
 	"\bsequence\x18\x02 \x01(\x04R\bsequence\x12)\n" +
-	"\x06member\x18\x03 \x01(\v2\x11.clusterpb.MemberR\x06memberB8Z6github.com/Aetherance/kv/proto/pkg/clusterpb;clusterpbb\x06proto3"
+	"\x06member\x18\x03 \x01(\v2\x11.clusterpb.MemberR\x06member\"\x9b\x01\n" +
+	"\n" +
+	"MemberInfo\x12)\n" +
+	"\x06member\x18\x01 \x01(\v2\x11.clusterpb.MemberR\x06member\x12)\n" +
+	"\x04role\x18\x02 \x01(\x0e2\x15.clusterpb.MemberRoleR\x04role\x12\x16\n" +
+	"\x06active\x18\x03 \x01(\bR\x06active\x12\x1f\n" +
+	"\vmatch_index\x18\x04 \x01(\x04R\n" +
+	"matchIndex\"\x13\n" +
+	"\x11MemberListRequest\"\xa6\x01\n" +
+	"\x12MemberListResponse\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x01 \x01(\x04R\tclusterId\x12\x1b\n" +
+	"\tleader_id\x18\x02 \x01(\x04R\bleaderId\x12#\n" +
+	"\rconf_revision\x18\x03 \x01(\x04R\fconfRevision\x12/\n" +
+	"\amembers\x18\x04 \x03(\v2\x15.clusterpb.MemberInfoR\amembers\"_\n" +
+	"\x10MemberAddRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12!\n" +
+	"\fraft_address\x18\x02 \x01(\tR\vraftAddress\x12\x18\n" +
+	"\alearner\x18\x03 \x01(\bR\alearner\"L\n" +
+	"\x11MemberAddResponse\x127\n" +
+	"\acluster\x18\x01 \x01(\v2\x1d.clusterpb.MemberListResponseR\acluster\"&\n" +
+	"\x14MemberPromoteRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\"P\n" +
+	"\x15MemberPromoteResponse\x127\n" +
+	"\acluster\x18\x01 \x01(\v2\x1d.clusterpb.MemberListResponseR\acluster\"%\n" +
+	"\x13MemberRemoveRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\"O\n" +
+	"\x14MemberRemoveResponse\x127\n" +
+	"\acluster\x18\x01 \x01(\v2\x1d.clusterpb.MemberListResponseR\acluster\"H\n" +
+	"\x13MemberUpdateRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12!\n" +
+	"\fraft_address\x18\x02 \x01(\tR\vraftAddress\"O\n" +
+	"\x14MemberUpdateResponse\x127\n" +
+	"\acluster\x18\x01 \x01(\v2\x1d.clusterpb.MemberListResponseR\acluster\"%\n" +
+	"\x13MemberStatusRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\"\x85\x01\n" +
+	"\x14MemberStatusResponse\x12\x1b\n" +
+	"\tleader_id\x18\x01 \x01(\x04R\bleaderId\x12!\n" +
+	"\fcommit_index\x18\x02 \x01(\x04R\vcommitIndex\x12-\n" +
+	"\x06member\x18\x03 \x01(\v2\x15.clusterpb.MemberInfoR\x06member*O\n" +
+	"\n" +
+	"MemberRole\x12\x15\n" +
+	"\x11MemberRoleUnknown\x10\x00\x12\x13\n" +
+	"\x0fMemberRoleVoter\x10\x01\x12\x15\n" +
+	"\x11MemberRoleLearner\x10\x022\xef\x03\n" +
+	"\aCluster\x12K\n" +
+	"\n" +
+	"MemberList\x12\x1c.clusterpb.MemberListRequest\x1a\x1d.clusterpb.MemberListResponse\"\x00\x12H\n" +
+	"\tMemberAdd\x12\x1b.clusterpb.MemberAddRequest\x1a\x1c.clusterpb.MemberAddResponse\"\x00\x12T\n" +
+	"\rMemberPromote\x12\x1f.clusterpb.MemberPromoteRequest\x1a .clusterpb.MemberPromoteResponse\"\x00\x12Q\n" +
+	"\fMemberRemove\x12\x1e.clusterpb.MemberRemoveRequest\x1a\x1f.clusterpb.MemberRemoveResponse\"\x00\x12Q\n" +
+	"\fMemberUpdate\x12\x1e.clusterpb.MemberUpdateRequest\x1a\x1f.clusterpb.MemberUpdateResponse\"\x00\x12Q\n" +
+	"\fMemberStatus\x12\x1e.clusterpb.MemberStatusRequest\x1a\x1f.clusterpb.MemberStatusResponse\"\x00B8Z6github.com/Aetherance/kv/proto/pkg/clusterpb;clusterpbb\x06proto3"
 
 var (
 	file_clusterpb_proto_rawDescOnce sync.Once
@@ -237,20 +990,55 @@ func file_clusterpb_proto_rawDescGZIP() []byte {
 	return file_clusterpb_proto_rawDescData
 }
 
-var file_clusterpb_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_clusterpb_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_clusterpb_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_clusterpb_proto_goTypes = []any{
-	(*Member)(nil),            // 0: clusterpb.Member
-	(*ClusterMetadata)(nil),   // 1: clusterpb.ClusterMetadata
-	(*ConfChangeContext)(nil), // 2: clusterpb.ConfChangeContext
+	(MemberRole)(0),               // 0: clusterpb.MemberRole
+	(*Member)(nil),                // 1: clusterpb.Member
+	(*ClusterMetadata)(nil),       // 2: clusterpb.ClusterMetadata
+	(*ConfChangeContext)(nil),     // 3: clusterpb.ConfChangeContext
+	(*MemberInfo)(nil),            // 4: clusterpb.MemberInfo
+	(*MemberListRequest)(nil),     // 5: clusterpb.MemberListRequest
+	(*MemberListResponse)(nil),    // 6: clusterpb.MemberListResponse
+	(*MemberAddRequest)(nil),      // 7: clusterpb.MemberAddRequest
+	(*MemberAddResponse)(nil),     // 8: clusterpb.MemberAddResponse
+	(*MemberPromoteRequest)(nil),  // 9: clusterpb.MemberPromoteRequest
+	(*MemberPromoteResponse)(nil), // 10: clusterpb.MemberPromoteResponse
+	(*MemberRemoveRequest)(nil),   // 11: clusterpb.MemberRemoveRequest
+	(*MemberRemoveResponse)(nil),  // 12: clusterpb.MemberRemoveResponse
+	(*MemberUpdateRequest)(nil),   // 13: clusterpb.MemberUpdateRequest
+	(*MemberUpdateResponse)(nil),  // 14: clusterpb.MemberUpdateResponse
+	(*MemberStatusRequest)(nil),   // 15: clusterpb.MemberStatusRequest
+	(*MemberStatusResponse)(nil),  // 16: clusterpb.MemberStatusResponse
 }
 var file_clusterpb_proto_depIdxs = []int32{
-	0, // 0: clusterpb.ClusterMetadata.members:type_name -> clusterpb.Member
-	0, // 1: clusterpb.ConfChangeContext.member:type_name -> clusterpb.Member
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	1,  // 0: clusterpb.ClusterMetadata.members:type_name -> clusterpb.Member
+	1,  // 1: clusterpb.ConfChangeContext.member:type_name -> clusterpb.Member
+	1,  // 2: clusterpb.MemberInfo.member:type_name -> clusterpb.Member
+	0,  // 3: clusterpb.MemberInfo.role:type_name -> clusterpb.MemberRole
+	4,  // 4: clusterpb.MemberListResponse.members:type_name -> clusterpb.MemberInfo
+	6,  // 5: clusterpb.MemberAddResponse.cluster:type_name -> clusterpb.MemberListResponse
+	6,  // 6: clusterpb.MemberPromoteResponse.cluster:type_name -> clusterpb.MemberListResponse
+	6,  // 7: clusterpb.MemberRemoveResponse.cluster:type_name -> clusterpb.MemberListResponse
+	6,  // 8: clusterpb.MemberUpdateResponse.cluster:type_name -> clusterpb.MemberListResponse
+	4,  // 9: clusterpb.MemberStatusResponse.member:type_name -> clusterpb.MemberInfo
+	5,  // 10: clusterpb.Cluster.MemberList:input_type -> clusterpb.MemberListRequest
+	7,  // 11: clusterpb.Cluster.MemberAdd:input_type -> clusterpb.MemberAddRequest
+	9,  // 12: clusterpb.Cluster.MemberPromote:input_type -> clusterpb.MemberPromoteRequest
+	11, // 13: clusterpb.Cluster.MemberRemove:input_type -> clusterpb.MemberRemoveRequest
+	13, // 14: clusterpb.Cluster.MemberUpdate:input_type -> clusterpb.MemberUpdateRequest
+	15, // 15: clusterpb.Cluster.MemberStatus:input_type -> clusterpb.MemberStatusRequest
+	6,  // 16: clusterpb.Cluster.MemberList:output_type -> clusterpb.MemberListResponse
+	8,  // 17: clusterpb.Cluster.MemberAdd:output_type -> clusterpb.MemberAddResponse
+	10, // 18: clusterpb.Cluster.MemberPromote:output_type -> clusterpb.MemberPromoteResponse
+	12, // 19: clusterpb.Cluster.MemberRemove:output_type -> clusterpb.MemberRemoveResponse
+	14, // 20: clusterpb.Cluster.MemberUpdate:output_type -> clusterpb.MemberUpdateResponse
+	16, // 21: clusterpb.Cluster.MemberStatus:output_type -> clusterpb.MemberStatusResponse
+	16, // [16:22] is the sub-list for method output_type
+	10, // [10:16] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_clusterpb_proto_init() }
@@ -263,13 +1051,14 @@ func file_clusterpb_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_clusterpb_proto_rawDesc), len(file_clusterpb_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   3,
+			NumEnums:      1,
+			NumMessages:   16,
 			NumExtensions: 0,
-			NumServices:   0,
+			NumServices:   1,
 		},
 		GoTypes:           file_clusterpb_proto_goTypes,
 		DependencyIndexes: file_clusterpb_proto_depIdxs,
+		EnumInfos:         file_clusterpb_proto_enumTypes,
 		MessageInfos:      file_clusterpb_proto_msgTypes,
 	}.Build()
 	File_clusterpb_proto = out.File

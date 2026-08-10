@@ -11,6 +11,7 @@ import (
 
 	"github.com/Aetherance/kv/engine/config"
 	"github.com/Aetherance/kv/engine/storage/raft_storage"
+	"github.com/Aetherance/kv/proto/pkg/clusterpb"
 	"github.com/Aetherance/kv/proto/pkg/kvpb"
 	rspb "github.com/Aetherance/kv/proto/pkg/raft_serverpb"
 	"github.com/Aetherance/kv/server"
@@ -46,6 +47,7 @@ func main() {
 	grpcServer := grpc.NewServer()
 	kvpb.RegisterKvServer(grpcServer, server.NewServer(rs))
 	rspb.RegisterRaftServiceServer(grpcServer, rs)
+	clusterpb.RegisterClusterServer(grpcServer, rs)
 
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
