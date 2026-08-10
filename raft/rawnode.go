@@ -82,6 +82,15 @@ type PrevStates struct {
 
 // NewRawNode returns a new RawNode given configuration and a list of raft peers.
 func NewRawNode(config *Config) (*RawNode, error) {
+	if config == nil {
+		return nil, errors.New("raft: nil config")
+	}
+	if err := config.validate(); err != nil {
+		return nil, err
+	}
+	if _, _, err := config.PersistentState.InitialState(); err != nil {
+		return nil, err
+	}
 	raft := newRaft(config)
 
 	return &RawNode{
@@ -123,6 +132,7 @@ func (rn *RawNode) ProposeConfChange(cc *pb.ConfChange) error {
 	ent := pb.Entry{EntryType: pb.EntryType_EntryConfChange, Data: data}
 	return rn.Raft.Step(&pb.Message{
 		MsgType: pb.MessageType_MsgPropose,
+		From:    rn.Raft.id,
 		Entries: []*pb.Entry{&ent},
 	})
 }
@@ -130,17 +140,22 @@ func (rn *RawNode) ProposeConfChange(cc *pb.ConfChange) error {
 // ApplyConfChange applies a config change to the local node.
 func (rn *RawNode) ApplyConfChange(cc *pb.ConfChange) *pb.ConfState {
 	if cc.NodeId == None {
-		return &pb.ConfState{Nodes: nodes(rn.Raft)}
+		return rn.Raft.Tracker.confState()
 	}
 	switch cc.ChangeType {
 	case pb.ConfChangeType_AddNode:
 		rn.Raft.addNode(cc.NodeId)
 	case pb.ConfChangeType_RemoveNode:
 		rn.Raft.removeNode(cc.NodeId)
+	case pb.ConfChangeType_UpdateNode:
+		// Address metadata is owned by the application. The Raft voting
+		// configuration is unchanged.
+	case pb.ConfChangeType_AddLearnerNode:
+		rn.Raft.addLearner(cc.NodeId)
 	default:
 		panic("unexpected conf type")
 	}
-	return &pb.ConfState{Nodes: nodes(rn.Raft)}
+	return rn.Raft.Tracker.confState()
 }
 
 // Step advances the state machine using the given message.
@@ -233,6 +248,29 @@ func (rn *RawNode) GetProgress() map[uint64]Progress {
 		}
 	}
 	return prs
+}
+
+// ConfState returns a point-in-time copy of the active voter/learner set.
+func (rn *RawNode) ConfState() *pb.ConfState { return rn.Raft.Tracker.confState() }
+
+func (rn *RawNode) IsVoter(id uint64) bool { return rn.Raft.Tracker.isVoter(id) }
+
+func (rn *RawNode) IsLearner(id uint64) bool { return rn.Raft.Tracker.isLearner(id) }
+
+func (rn *RawNode) LeaderID() uint64 { return rn.Raft.Lead }
+
+func (rn *RawNode) CommitIndex() uint64 { return rn.Raft.RaftLog.committed }
+
+func (rn *RawNode) AppliedIndex() uint64 { return rn.Raft.RaftLog.applied }
+
+// ReportSnapshot makes a failed snapshot eligible for retry. A successful send
+// remains pending until the follower acknowledges the installed index.
+func (rn *RawNode) ReportSnapshot(id uint64, success bool) {
+	progress := rn.Raft.Prs[id]
+	if progress == nil || progress.PendingSnapshot == 0 || success {
+		return
+	}
+	progress.PendingSnapshot = 0
 }
 
 // TransferLeader tries to transfer leadership to the given transferee.

@@ -6,6 +6,9 @@ option go_package = "github.com/Aetherance/kv/proto/pkg/raftpb;raftpb";
 enum EntryType {
     EntryNormal = 0;
     EntryConfChange = 1;
+    // Reserved for the future joint-consensus implementation. Simple
+    // one-at-a-time changes continue to use EntryConfChange.
+    EntryConfChangeV2 = 2;
 }
 
 message Entry {
@@ -61,12 +64,23 @@ message HardState {
 }
 
 message ConfState {
-    repeated uint64 nodes = 1;
+    // Field 1 used to be named "nodes". Renaming it is wire compatible and
+    // makes the voting role explicit.
+    repeated uint64 voters = 1;
+    repeated uint64 learners = 2;
+
+    // These fields mirror etcd/raft's ConfState layout so joint consensus can
+    // be added without another durable-format migration.
+    repeated uint64 voters_outgoing = 3;
+    repeated uint64 learners_next = 4;
+    bool auto_leave = 5;
 }
 
 enum ConfChangeType {
-    AddNode    = 0;
-    RemoveNode = 1;
+    AddNode       = 0;
+    RemoveNode    = 1;
+    UpdateNode    = 2;
+    AddLearnerNode = 3;
 }
 
 message ConfChange {
