@@ -815,7 +815,7 @@ func (r *Raft) handleAppendResponse(m *pb.Message) {
 }
 
 func (r *Raft) maybeCommit() bool {
-	for idx := r.RaftLog.committed + 1; idx <= r.RaftLog.LastIndex(); idx++ {
+	for idx := r.RaftLog.LastIndex(); idx > r.RaftLog.committed; idx-- {
 		term, _ := r.RaftLog.Term(idx)
 		if term != r.Term {
 			continue

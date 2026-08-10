@@ -344,6 +344,33 @@ func TestSingleNodeCommit2AB(t *testing.T) {
 	}
 }
 
+func TestMaybeCommitAdvancesToHighestQuorumIndex(t *testing.T) {
+	r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryState())
+	r.becomeCandidate()
+	r.becomeLeader()
+	r.readMessages()
+	if err := r.Step(&pb.Message{
+		MsgType: pb.MessageType_MsgPropose,
+		From:    1,
+		To:      1,
+		Entries: []*pb.Entry{{Data: []byte("one")}, {Data: []byte("two")}},
+	}); err != nil {
+		t.Fatalf("propose: %v", err)
+	}
+	if err := r.Step(&pb.Message{
+		MsgType: pb.MessageType_MsgAppendResponse,
+		From:    2,
+		To:      1,
+		Term:    r.Term,
+		Index:   r.RaftLog.LastIndex(),
+	}); err != nil {
+		t.Fatalf("append response: %v", err)
+	}
+	if r.RaftLog.committed != r.RaftLog.LastIndex() {
+		t.Fatalf("committed = %d, want highest quorum index %d", r.RaftLog.committed, r.RaftLog.LastIndex())
+	}
+}
+
 // TestCommitWithoutNewTermEntry tests the entries could be committed
 // when leader changes with noop entry and no new proposal comes in.
 func TestCommitWithoutNewTermEntry2AB(t *testing.T) {
