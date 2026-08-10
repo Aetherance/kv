@@ -103,6 +103,34 @@ func (rs *RaftStorage) MemberStatus(ctx context.Context, request *clusterpb.Memb
 	}, nil
 }
 
+// JoinInfo returns the authoritative bootstrap view only for a member that has
+// already been committed as a learner with the same advertised address.
+func (rs *RaftStorage) JoinInfo(ctx context.Context, request *clusterpb.JoinInfoRequest) (*clusterpb.JoinInfoResponse, error) {
+	if request == nil || request.Id == 0 || strings.TrimSpace(request.RaftAddress) == "" {
+		return nil, status.Error(codes.InvalidArgument, "member ID and raft address are required")
+	}
+	clusterStatus, err := rs.status(ctx)
+	if err != nil {
+		return nil, membershipRPCError(err)
+	}
+	member, _ := findMember(clusterStatus.metadata, request.Id)
+	if member == nil || member.RaftAddress != strings.TrimSpace(request.RaftAddress) {
+		return nil, status.Error(codes.FailedPrecondition, "member must be added with this address before joining")
+	}
+	if memberRole(clusterStatus.confState, request.Id) != clusterpb.MemberRole_MemberRoleLearner {
+		return nil, status.Error(codes.FailedPrecondition, "only an added learner may join with a fresh database")
+	}
+	members := make([]*clusterpb.Member, 0, len(clusterStatus.metadata.Members))
+	for _, clusterMember := range clusterStatus.metadata.Members {
+		members = append(members, proto.Clone(clusterMember).(*clusterpb.Member))
+	}
+	return &clusterpb.JoinInfoResponse{
+		ClusterId: clusterStatus.metadata.ClusterId,
+		LeaderId:  clusterStatus.leaderID,
+		Members:   members,
+	}, nil
+}
+
 func memberListResponse(clusterStatus *clusterStatus) *clusterpb.MemberListResponse {
 	response := &clusterpb.MemberListResponse{
 		ClusterId:    clusterStatus.metadata.ClusterId,

@@ -183,6 +183,11 @@ func (rs *RaftStorage) handleReady() error {
 				if context.ProposerId == rs.config.StoreID {
 					rs.completePending(context.Sequence, nil)
 				}
+				if change.ChangeType == raftpb.ConfChangeType_AddLearnerNode {
+					if err := rs.state.forceSnapshot(); err != nil {
+						return fmt.Errorf("raft storage: snapshot after learner add: %w", err)
+					}
+				}
 
 			default:
 				return fmt.Errorf("raft storage: unknown entry type %s", entry.EntryType)

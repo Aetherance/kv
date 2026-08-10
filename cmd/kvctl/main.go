@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Aetherance/kv/proto/pkg/clusterpb"
 	"github.com/Aetherance/kv/proto/pkg/kvpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -27,6 +28,7 @@ func main() {
 	defer conn.Close()
 
 	client := kvpb.NewKvClient(conn)
+	clusterClient := clusterpb.NewClusterClient(conn)
 
 	head := flag.Args()
 	cmd := head[0]
@@ -41,6 +43,8 @@ func main() {
 		runDel(client, args)
 	case "scan":
 		runScan(client, args)
+	case "member":
+		runMember(clusterClient, args)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", cmd)
 		os.Exit(1)

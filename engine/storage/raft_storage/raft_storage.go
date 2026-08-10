@@ -149,7 +149,7 @@ func (rs *RaftStorage) Start() error {
 		cleanup()
 		return err
 	}
-	state, err := openRaftStatePersistence(db, initialCluster)
+	state, err := openRaftStatePersistence(db, initialCluster, rs.config.Join)
 	if err != nil {
 		cleanup()
 		return err
@@ -179,7 +179,7 @@ func (rs *RaftStorage) Start() error {
 	rs.inbox = make(chan raftEvent, 256)
 	rs.done = make(chan struct{})
 	rs.runErr = nil
-	if len(state.confState.Voters) == 1 {
+	if rs.node.IsVoter(rs.config.StoreID) && len(rs.node.ConfState().Voters) == 1 {
 		if err := rs.node.Campaign(); err != nil {
 			rs.transport.Stop()
 			cleanup()

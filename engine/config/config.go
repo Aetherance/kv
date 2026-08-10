@@ -6,11 +6,15 @@ import "time"
 type Config struct {
 	DBPath string
 
-	// Peers bootstraps a new database. Once initialized, the persisted
-	// ClusterMetadata registry is authoritative for membership identity.
+	// Peers is used only to bootstrap a new cluster/database. Once initialized,
+	// the replicated ClusterMetadata registry is authoritative.
 	StoreID   uint64
 	ClusterID uint64
 	Peers     map[uint64]string
+	// Join starts a fresh local database without making this store a voter. The
+	// caller must populate Peers and ClusterID from JoinInfo first; the member is
+	// expected to have already been added as a learner.
+	Join bool
 
 	// Raft protocol timing and log retention.
 	RaftElectionTimeoutTicks int

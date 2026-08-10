@@ -51,6 +51,8 @@ message MemberListResponse {
 message MemberAddRequest {
     uint64 id = 1;
     string raft_address = 2;
+    // The first implementation accepts learner additions only. Keeping this
+    // field makes an explicit unsafe/direct voter mode possible later.
     bool learner = 3;
 }
 
@@ -93,6 +95,17 @@ message MemberStatusResponse {
     MemberInfo member = 3;
 }
 
+message JoinInfoRequest {
+    uint64 id = 1;
+    string raft_address = 2;
+}
+
+message JoinInfoResponse {
+    uint64 cluster_id = 1;
+    uint64 leader_id = 2;
+    repeated Member members = 3;
+}
+
 service Cluster {
     rpc MemberList(MemberListRequest) returns (MemberListResponse) {}
     rpc MemberAdd(MemberAddRequest) returns (MemberAddResponse) {}
@@ -100,4 +113,5 @@ service Cluster {
     rpc MemberRemove(MemberRemoveRequest) returns (MemberRemoveResponse) {}
     rpc MemberUpdate(MemberUpdateRequest) returns (MemberUpdateResponse) {}
     rpc MemberStatus(MemberStatusRequest) returns (MemberStatusResponse) {}
+    rpc JoinInfo(JoinInfoRequest) returns (JoinInfoResponse) {}
 }

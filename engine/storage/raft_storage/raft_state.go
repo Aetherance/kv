@@ -40,12 +40,12 @@ var (
 	logSuffix         = []byte("log/")
 )
 
-func openRaftStatePersistence(db *badger.DB, initialCluster *clusterpb.ClusterMetadata) (*raftStatePersistence, error) {
+func openRaftStatePersistence(db *badger.DB, initialCluster *clusterpb.ClusterMetadata, join bool) (*raftStatePersistence, error) {
 	if db == nil {
 		return nil, errors.New("raft storage: nil badger database")
 	}
 	state := &raftStatePersistence{db: db}
-	if err := state.loadOrBootstrap(initialCluster); err != nil {
+	if err := state.loadOrBootstrap(initialCluster, join); err != nil {
 		return nil, err
 	}
 	if state.appliedIndex > state.hardState.Commit {
@@ -297,7 +297,10 @@ func (e *raftStatePersistence) maybeCompact(threshold uint64) error {
 		return nil
 	}
 
-	index := e.appliedIndex
+	return e.createSnapshot(e.appliedIndex)
+}
+
+func (e *raftStatePersistence) createSnapshot(index uint64) error {
 	term, err := e.Term(index)
 	if err != nil {
 		return err
@@ -336,6 +339,13 @@ func (e *raftStatePersistence) maybeCompact(threshold uint64) error {
 	return nil
 }
 
+func (e *raftStatePersistence) forceSnapshot() error {
+	if e.appliedIndex <= e.snapshot.Metadata.Index {
+		return nil
+	}
+	return e.createSnapshot(e.appliedIndex)
+}
+
 func (e *raftStatePersistence) checkNextApplied(index uint64) error {
 	if index != e.appliedIndex+1 {
 		return fmt.Errorf("raft storage: apply index %d is not after durable index %d", index, e.appliedIndex)
@@ -343,7 +353,7 @@ func (e *raftStatePersistence) checkNextApplied(index uint64) error {
 	return nil
 }
 
-func (e *raftStatePersistence) loadOrBootstrap(initialCluster *clusterpb.ClusterMetadata) error {
+func (e *raftStatePersistence) loadOrBootstrap(initialCluster *clusterpb.ClusterMetadata, join bool) error {
 	err := e.db.View(func(txn *badger.Txn) error {
 		_, err := txn.Get(e.key(initializedSuffix))
 		return err
@@ -356,8 +366,10 @@ func (e *raftStatePersistence) loadOrBootstrap(initialCluster *clusterpb.Cluster
 		e.hardState = &raftpb.HardState{}
 		e.cluster = cloneClusterMetadata(initialCluster)
 		e.confState = &raftpb.ConfState{}
-		for _, member := range e.cluster.Members {
-			e.confState.Voters = append(e.confState.Voters, member.Id)
+		if !join {
+			for _, member := range e.cluster.Members {
+				e.confState.Voters = append(e.confState.Voters, member.Id)
+			}
 		}
 		e.snapshot = &raftpb.Snapshot{Metadata: &raftpb.SnapshotMetadata{ConfState: cloneConfState(e.confState)}}
 		return e.db.Update(func(txn *badger.Txn) error {
