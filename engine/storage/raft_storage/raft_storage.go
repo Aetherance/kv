@@ -18,6 +18,7 @@ import (
 	"github.com/Aetherance/kv/engine/config"
 	"github.com/Aetherance/kv/engine/storage"
 	engine_util "github.com/Aetherance/kv/engine/util"
+	"github.com/Aetherance/kv/proto/pkg/clusterpb"
 	"github.com/Aetherance/kv/proto/pkg/raft_cmdpb"
 	rspb "github.com/Aetherance/kv/proto/pkg/raft_serverpb"
 	"github.com/Aetherance/kv/proto/pkg/raftpb"
@@ -139,8 +140,12 @@ func (rs *RaftStorage) Start() error {
 		return err
 	}
 
-	peers := sortedPeerIDs(rs.config.Peers)
-	state, err := openRaftStatePersistence(db, peers)
+	initialCluster, err := initialClusterMetadata(rs.config.ClusterID, rs.config.Peers)
+	if err != nil {
+		cleanup()
+		return err
+	}
+	state, err := openRaftStatePersistence(db, initialCluster)
 	if err != nil {
 		cleanup()
 		return err
@@ -163,7 +168,7 @@ func (rs *RaftStorage) Start() error {
 	rs.inbox = make(chan raftEvent, 256)
 	rs.done = make(chan struct{})
 	rs.runErr = nil
-	if len(peers) == 1 {
+	if len(state.confState.Voters) == 1 {
 		if err := rs.node.Campaign(); err != nil {
 			rs.transport.Stop()
 			cleanup()
@@ -365,8 +370,8 @@ func decodeProposal(data []byte) (requestID, []byte, error) {
 	}, data[20:], nil
 }
 
-func captureKVSnapshot(txn *badger.Txn) ([]byte, error) {
-	snapshot := new(rspb.RaftSnapshotData)
+func captureKVSnapshot(txn *badger.Txn, cluster *clusterpb.ClusterMetadata) ([]byte, error) {
+	snapshot := &rspb.RaftSnapshotData{Cluster: cloneClusterMetadata(cluster)}
 	for _, cf := range engine_util.CFs {
 		prefix := []byte(cf + "_")
 		iterator := txn.NewIterator(badger.DefaultIteratorOptions)
@@ -387,10 +392,10 @@ func captureKVSnapshot(txn *badger.Txn) ([]byte, error) {
 	return proto.Marshal(snapshot)
 }
 
-func restoreKVSnapshot(txn *badger.Txn, data []byte) error {
+func restoreKVSnapshot(txn *badger.Txn, data []byte) (*clusterpb.ClusterMetadata, error) {
 	snapshot := new(rspb.RaftSnapshotData)
 	if err := proto.Unmarshal(data, snapshot); err != nil {
-		return err
+		return nil, err
 	}
 	for _, cf := range engine_util.CFs {
 		prefix := []byte(cf + "_")
@@ -398,17 +403,17 @@ func restoreKVSnapshot(txn *badger.Txn, data []byte) error {
 		for iterator.Seek(prefix); iterator.ValidForPrefix(prefix); iterator.Next() {
 			if err := txn.Delete(iterator.Item().KeyCopy(nil)); err != nil {
 				iterator.Close()
-				return err
+				return nil, err
 			}
 		}
 		iterator.Close()
 	}
 	for _, pair := range snapshot.Data {
 		if err := txn.Set(pair.Key, pair.Value); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return cloneClusterMetadata(snapshot.Cluster), nil
 }
 
 func validateConfig(config *config.Config) error {
@@ -420,6 +425,9 @@ func validateConfig(config *config.Config) error {
 	}
 	if _, ok := config.Peers[config.StoreID]; !ok {
 		return fmt.Errorf("raft storage: store %d is absent from peers", config.StoreID)
+	}
+	if config.ClusterID == 0 {
+		return errors.New("raft storage: cluster ID must be non-zero")
 	}
 	if config.RaftBaseTickInterval <= 0 || config.RaftHeartbeatTicks <= 0 || config.RaftElectionTimeoutTicks <= config.RaftHeartbeatTicks {
 		return errors.New("raft storage: invalid raft timing configuration")

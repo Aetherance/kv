@@ -7,6 +7,7 @@
 package raft_serverpb
 
 import (
+	clusterpb "github.com/Aetherance/kv/proto/pkg/clusterpb"
 	raftpb "github.com/Aetherance/kv/proto/pkg/raftpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -75,8 +76,9 @@ func (x *KeyValue) GetValue() []byte {
 }
 
 type RaftSnapshotData struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Data          []*KeyValue            `protobuf:"bytes,3,rep,name=data,proto3" json:"data,omitempty"`
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Data          []*KeyValue                `protobuf:"bytes,3,rep,name=data,proto3" json:"data,omitempty"`
+	Cluster       *clusterpb.ClusterMetadata `protobuf:"bytes,4,opt,name=cluster,proto3" json:"cluster,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -114,6 +116,13 @@ func (*RaftSnapshotData) Descriptor() ([]byte, []int) {
 func (x *RaftSnapshotData) GetData() []*KeyValue {
 	if x != nil {
 		return x.Data
+	}
+	return nil
+}
+
+func (x *RaftSnapshotData) GetCluster() *clusterpb.ClusterMetadata {
+	if x != nil {
+		return x.Cluster
 	}
 	return nil
 }
@@ -158,12 +167,13 @@ var File_raft_serverpb_proto protoreflect.FileDescriptor
 
 const file_raft_serverpb_proto_rawDesc = "" +
 	"\n" +
-	"\x13raft_serverpb.proto\x12\rraft_serverpb\x1a\fraftpb.proto\"2\n" +
+	"\x13raft_serverpb.proto\x12\rraft_serverpb\x1a\fraftpb.proto\x1a\x0fclusterpb.proto\"2\n" +
 	"\bKeyValue\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\fR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\fR\x05value\"j\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value\"\xa0\x01\n" +
 	"\x10RaftSnapshotData\x12+\n" +
-	"\x04data\x18\x03 \x03(\v2\x17.raft_serverpb.KeyValueR\x04dataJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x05\x10\x06R\x06regionR\tfile_sizeR\x04meta\"\x06\n" +
+	"\x04data\x18\x03 \x03(\v2\x17.raft_serverpb.KeyValueR\x04data\x124\n" +
+	"\acluster\x18\x04 \x01(\v2\x1a.clusterpb.ClusterMetadataR\aclusterJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x05\x10\x06R\x06regionR\tfile_sizeR\x04meta\"\x06\n" +
 	"\x04Done2?\n" +
 	"\vRaftService\x120\n" +
 	"\x04Raft\x12\x0f.raftpb.Message\x1a\x13.raft_serverpb.Done\"\x00(\x01B@Z>github.com/Aetherance/kv/proto/pkg/raft_serverpb;raft_serverpbb\x06proto3"
@@ -182,20 +192,22 @@ func file_raft_serverpb_proto_rawDescGZIP() []byte {
 
 var file_raft_serverpb_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_raft_serverpb_proto_goTypes = []any{
-	(*KeyValue)(nil),         // 0: raft_serverpb.KeyValue
-	(*RaftSnapshotData)(nil), // 1: raft_serverpb.RaftSnapshotData
-	(*Done)(nil),             // 2: raft_serverpb.Done
-	(*raftpb.Message)(nil),   // 3: raftpb.Message
+	(*KeyValue)(nil),                  // 0: raft_serverpb.KeyValue
+	(*RaftSnapshotData)(nil),          // 1: raft_serverpb.RaftSnapshotData
+	(*Done)(nil),                      // 2: raft_serverpb.Done
+	(*clusterpb.ClusterMetadata)(nil), // 3: clusterpb.ClusterMetadata
+	(*raftpb.Message)(nil),            // 4: raftpb.Message
 }
 var file_raft_serverpb_proto_depIdxs = []int32{
 	0, // 0: raft_serverpb.RaftSnapshotData.data:type_name -> raft_serverpb.KeyValue
-	3, // 1: raft_serverpb.RaftService.Raft:input_type -> raftpb.Message
-	2, // 2: raft_serverpb.RaftService.Raft:output_type -> raft_serverpb.Done
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	3, // 1: raft_serverpb.RaftSnapshotData.cluster:type_name -> clusterpb.ClusterMetadata
+	4, // 2: raft_serverpb.RaftService.Raft:input_type -> raftpb.Message
+	2, // 3: raft_serverpb.RaftService.Raft:output_type -> raft_serverpb.Done
+	3, // [3:4] is the sub-list for method output_type
+	2, // [2:3] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_raft_serverpb_proto_init() }
