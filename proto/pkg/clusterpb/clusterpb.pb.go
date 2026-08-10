@@ -143,6 +143,68 @@ func (x *ClusterMetadata) GetConfRevision() uint64 {
 	return 0
 }
 
+// ConfChangeContext is replicated with a raftpb.ConfChange. It carries the
+// application-level member record and identifies the local waiter to complete.
+type ConfChangeContext struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProposerId    uint64                 `protobuf:"varint,1,opt,name=proposer_id,json=proposerId,proto3" json:"proposer_id,omitempty"`
+	Sequence      uint64                 `protobuf:"varint,2,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	Member        *Member                `protobuf:"bytes,3,opt,name=member,proto3" json:"member,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfChangeContext) Reset() {
+	*x = ConfChangeContext{}
+	mi := &file_clusterpb_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfChangeContext) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfChangeContext) ProtoMessage() {}
+
+func (x *ConfChangeContext) ProtoReflect() protoreflect.Message {
+	mi := &file_clusterpb_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfChangeContext.ProtoReflect.Descriptor instead.
+func (*ConfChangeContext) Descriptor() ([]byte, []int) {
+	return file_clusterpb_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ConfChangeContext) GetProposerId() uint64 {
+	if x != nil {
+		return x.ProposerId
+	}
+	return 0
+}
+
+func (x *ConfChangeContext) GetSequence() uint64 {
+	if x != nil {
+		return x.Sequence
+	}
+	return 0
+}
+
+func (x *ConfChangeContext) GetMember() *Member {
+	if x != nil {
+		return x.Member
+	}
+	return nil
+}
+
 var File_clusterpb_proto protoreflect.FileDescriptor
 
 const file_clusterpb_proto_rawDesc = "" +
@@ -156,7 +218,12 @@ const file_clusterpb_proto_rawDesc = "" +
 	"cluster_id\x18\x01 \x01(\x04R\tclusterId\x12+\n" +
 	"\amembers\x18\x02 \x03(\v2\x11.clusterpb.MemberR\amembers\x12,\n" +
 	"\x12removed_member_ids\x18\x03 \x03(\x04R\x10removedMemberIds\x12#\n" +
-	"\rconf_revision\x18\x04 \x01(\x04R\fconfRevisionB8Z6github.com/Aetherance/kv/proto/pkg/clusterpb;clusterpbb\x06proto3"
+	"\rconf_revision\x18\x04 \x01(\x04R\fconfRevision\"{\n" +
+	"\x11ConfChangeContext\x12\x1f\n" +
+	"\vproposer_id\x18\x01 \x01(\x04R\n" +
+	"proposerId\x12\x1a\n" +
+	"\bsequence\x18\x02 \x01(\x04R\bsequence\x12)\n" +
+	"\x06member\x18\x03 \x01(\v2\x11.clusterpb.MemberR\x06memberB8Z6github.com/Aetherance/kv/proto/pkg/clusterpb;clusterpbb\x06proto3"
 
 var (
 	file_clusterpb_proto_rawDescOnce sync.Once
@@ -170,18 +237,20 @@ func file_clusterpb_proto_rawDescGZIP() []byte {
 	return file_clusterpb_proto_rawDescData
 }
 
-var file_clusterpb_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_clusterpb_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_clusterpb_proto_goTypes = []any{
-	(*Member)(nil),          // 0: clusterpb.Member
-	(*ClusterMetadata)(nil), // 1: clusterpb.ClusterMetadata
+	(*Member)(nil),            // 0: clusterpb.Member
+	(*ClusterMetadata)(nil),   // 1: clusterpb.ClusterMetadata
+	(*ConfChangeContext)(nil), // 2: clusterpb.ConfChangeContext
 }
 var file_clusterpb_proto_depIdxs = []int32{
 	0, // 0: clusterpb.ClusterMetadata.members:type_name -> clusterpb.Member
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	0, // 1: clusterpb.ConfChangeContext.member:type_name -> clusterpb.Member
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_clusterpb_proto_init() }
@@ -195,7 +264,7 @@ func file_clusterpb_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_clusterpb_proto_rawDesc), len(file_clusterpb_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
