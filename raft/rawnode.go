@@ -20,6 +20,13 @@ type SoftState struct {
 	RaftState StateType
 }
 
+// ReadState provides the commit index that is safe to use for a linearizable
+// read and the opaque context supplied with the corresponding ReadIndex call.
+type ReadState struct {
+	Index      uint64
+	RequestCtx []byte
+}
+
 // Ready encapsulates the entries and messages that are ready to read,
 // be saved to stable storage, committed or sent to other peers.
 // All fields in Ready are read-only.
@@ -51,6 +58,9 @@ type Ready struct {
 	// If it contains a MessageType_MsgSnapshot message, the application MUST report back to raft
 	// when the snapshot has been received or has failed by calling ReportSnapshot.
 	Messages []*pb.Message
+
+	// ReadStates specifies completed linearizable read-index requests.
+	ReadStates []ReadState
 }
 
 // RawNode is a wrapper of Raft.
@@ -98,6 +108,18 @@ func (rn *RawNode) Propose(data []byte) error {
 		MsgType: pb.MessageType_MsgPropose,
 		From:    rn.Raft.id,
 		Entries: []*pb.Entry{&ent}})
+}
+
+// ReadIndex requests a linearizable read index using an opaque, caller-unique
+// context. The result is returned asynchronously through Ready.ReadStates.
+func (rn *RawNode) ReadIndex(requestCtx []byte) error {
+	return rn.Raft.Step(&pb.Message{
+		MsgType: pb.MessageType_MsgReadIndex,
+		From:    rn.Raft.id,
+		To:      rn.Raft.id,
+		Term:    rn.Raft.Term,
+		Context: append([]byte(nil), requestCtx...),
+	})
 }
 
 // ProposeConfChange proposes a config change.
@@ -184,12 +206,14 @@ func (rn *RawNode) Ready() Ready {
 		CommittedEntries: rn.Raft.RaftLog.nextEnts(),
 		Messages:         msg,
 		Snapshot:         rn.Raft.RaftLog.pendingSnapshot,
+		ReadStates:       rn.Raft.readStates,
 	}
 
 	rn.PrevHardState = currentHardState
 	rn.PrevSoftState = currentSoftState
 
 	rn.Raft.msgs = nil
+	rn.Raft.readStates = nil
 	return rd
 }
 
@@ -204,6 +228,7 @@ func (rn *RawNode) HasReady() bool {
 		return true
 	}
 	return len(rn.Raft.msgs) > 0 ||
+		len(rn.Raft.readStates) > 0 ||
 		len(rn.Raft.RaftLog.unstableEntries()) > 0 ||
 		len(rn.Raft.RaftLog.nextEnts()) > 0 ||
 		rn.Raft.RaftLog.pendingSnapshot != nil

@@ -31,6 +31,7 @@ type raftOperation uint8
 const (
 	opStep raftOperation = iota
 	opPropose
+	opReadIndex
 )
 
 type raftEvent struct {
@@ -49,6 +50,7 @@ func (rs *RaftStorage) run(ctx context.Context) {
 		pendingErr = errStopped
 	}
 	rs.failPending(pendingErr)
+	rs.failPendingReads(pendingErr)
 	close(rs.done)
 }
 
@@ -89,6 +91,20 @@ func (rs *RaftStorage) handleEvent(event raftEvent) (error, bool) {
 			return &NotLeaderError{LeaderID: rs.node.Raft.Lead}, false
 		}
 		if err := rs.node.Propose(event.data); err != nil {
+			return err, false
+		}
+	case opReadIndex:
+		leaderID := rs.node.Raft.Lead
+		if rs.node.Raft.State == raft.StateLeader {
+			leaderID = rs.config.StoreID
+		}
+		if leaderID == raft.None {
+			return &NotLeaderError{}, false
+		}
+		if !rs.setPendingReadLeader(event.data, leaderID) {
+			return nil, false
+		}
+		if err := rs.node.ReadIndex(event.data); err != nil {
 			return err, false
 		}
 	default:
@@ -135,6 +151,10 @@ func (rs *RaftStorage) handleReady() error {
 				return fmt.Errorf("raft storage: unknown entry type %s", entry.EntryType)
 			}
 		}
+		for _, readState := range ready.ReadStates {
+			rs.onReadState(readState)
+		}
+		rs.completeAppliedReads()
 
 		if len(ready.Messages) > 0 {
 			rs.sendMessages(ready.Messages)
@@ -145,6 +165,13 @@ func (rs *RaftStorage) handleReady() error {
 
 		if ready.SoftState != nil && ready.SoftState.RaftState != raft.StateLeader {
 			rs.failPending(errLeadershipLost)
+		}
+		if ready.SoftState != nil {
+			activeLeader := ready.SoftState.Lead
+			if ready.SoftState.RaftState == raft.StateLeader {
+				activeLeader = rs.config.StoreID
+			}
+			rs.failReadsForLeaderChange(activeLeader)
 		}
 		rs.node.Advance(&ready)
 	}
@@ -157,6 +184,10 @@ func (rs *RaftStorage) step(ctx context.Context, message *raftpb.Message) error 
 
 func (rs *RaftStorage) proposeData(ctx context.Context, data []byte) error {
 	return rs.submit(ctx, raftEvent{op: opPropose, data: append([]byte(nil), data...)})
+}
+
+func (rs *RaftStorage) readIndexData(ctx context.Context, data []byte) error {
+	return rs.submit(ctx, raftEvent{op: opReadIndex, data: append([]byte(nil), data...)})
 }
 
 func (rs *RaftStorage) submit(ctx context.Context, event raftEvent) error {

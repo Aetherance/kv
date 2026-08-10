@@ -2,6 +2,7 @@ package raft_storage
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -37,6 +38,13 @@ type requestID struct {
 	sequence uint64
 }
 
+type pendingRead struct {
+	resultCh chan error
+	leaderID uint64
+	index    uint64
+	ready    bool
+}
+
 // RaftStorage runs one local replica of a fixed Raft-backed KV storage.
 type RaftStorage struct {
 	rspb.UnimplementedRaftServiceServer
@@ -57,6 +65,10 @@ type RaftStorage struct {
 	pendingMu sync.Mutex
 	pending   map[uint64]chan error
 
+	readIncarnation uint64
+	readPendingMu   sync.Mutex
+	readPending     map[string]*pendingRead
+
 	lifecycleMu sync.Mutex
 	started     bool
 	stopped     bool
@@ -66,8 +78,9 @@ var _ storage.Storage = (*RaftStorage)(nil)
 
 func NewRaftStorage(conf *config.Config) *RaftStorage {
 	return &RaftStorage{
-		config:  conf,
-		pending: make(map[uint64]chan error),
+		config:      conf,
+		pending:     make(map[uint64]chan error),
+		readPending: make(map[string]*pendingRead),
 	}
 }
 
@@ -100,10 +113,7 @@ func (rs *RaftStorage) Write(ctx context.Context, batch []storage.Modify) error 
 }
 
 func (rs *RaftStorage) Reader(ctx context.Context) (storage.StorageReader, error) {
-	request := &raft_cmdpb.RaftCmdRequest{Requests: []*raft_cmdpb.Request{{
-		CmdType: raft_cmdpb.CmdType_ReadBarrier,
-	}}}
-	if err := rs.propose(ctx, request); err != nil {
+	if err := rs.readIndex(ctx); err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -124,6 +134,11 @@ func (rs *RaftStorage) Start() error {
 	if err := validateConfig(rs.config); err != nil {
 		return err
 	}
+	incarnation, err := newReadIncarnation()
+	if err != nil {
+		return err
+	}
+	rs.readIncarnation = incarnation
 
 	db, err := openDB(filepath.Join(rs.config.DBPath, "db"))
 	if err != nil {
@@ -270,6 +285,135 @@ func (rs *RaftStorage) propose(ctx context.Context, request *raft_cmdpb.RaftCmdR
 	}
 }
 
+func (rs *RaftStorage) readIndex(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	sequence := rs.sequence.Add(1)
+	requestCtx := encodeReadContext(rs.config.StoreID, rs.readIncarnation, sequence)
+	resultCh := make(chan error, 1)
+	key := string(requestCtx)
+
+	rs.readPendingMu.Lock()
+	if rs.readPending == nil {
+		rs.readPending = make(map[string]*pendingRead)
+	}
+	rs.readPending[key] = &pendingRead{resultCh: resultCh}
+	rs.readPendingMu.Unlock()
+
+	if err := rs.readIndexData(ctx, requestCtx); err != nil {
+		rs.removePendingRead(key)
+		return err
+	}
+	select {
+	case err := <-resultCh:
+		return err
+	case <-ctx.Done():
+		rs.removePendingRead(key)
+		return ctx.Err()
+	case <-rs.done:
+		rs.removePendingRead(key)
+		return rs.stoppedError()
+	}
+}
+
+func newReadIncarnation() (uint64, error) {
+	var data [8]byte
+	if _, err := rand.Read(data[:]); err != nil {
+		return 0, fmt.Errorf("raft storage: create read incarnation: %w", err)
+	}
+	incarnation := binary.BigEndian.Uint64(data[:])
+	if incarnation == 0 {
+		incarnation = 1
+	}
+	return incarnation, nil
+}
+
+func encodeReadContext(nodeID, incarnation, sequence uint64) []byte {
+	data := make([]byte, 24)
+	binary.BigEndian.PutUint64(data[0:8], nodeID)
+	binary.BigEndian.PutUint64(data[8:16], incarnation)
+	binary.BigEndian.PutUint64(data[16:24], sequence)
+	return data
+}
+
+func (rs *RaftStorage) setPendingReadLeader(requestCtx []byte, leaderID uint64) bool {
+	rs.readPendingMu.Lock()
+	defer rs.readPendingMu.Unlock()
+	pending := rs.readPending[string(requestCtx)]
+	if pending == nil {
+		return false
+	}
+	pending.leaderID = leaderID
+	return true
+}
+
+func (rs *RaftStorage) onReadState(readState raft.ReadState) {
+	key := string(readState.RequestCtx)
+	rs.readPendingMu.Lock()
+	pending := rs.readPending[key]
+	if pending == nil {
+		rs.readPendingMu.Unlock()
+		return
+	}
+	pending.index = readState.Index
+	pending.ready = true
+	if rs.state.applied() < pending.index {
+		rs.readPendingMu.Unlock()
+		return
+	}
+	delete(rs.readPending, key)
+	rs.readPendingMu.Unlock()
+	pending.resultCh <- nil
+}
+
+func (rs *RaftStorage) completeAppliedReads() {
+	applied := rs.state.applied()
+	var completed []*pendingRead
+	rs.readPendingMu.Lock()
+	for key, pending := range rs.readPending {
+		if pending.ready && pending.index <= applied {
+			delete(rs.readPending, key)
+			completed = append(completed, pending)
+		}
+	}
+	rs.readPendingMu.Unlock()
+	for _, pending := range completed {
+		pending.resultCh <- nil
+	}
+}
+
+func (rs *RaftStorage) removePendingRead(key string) {
+	rs.readPendingMu.Lock()
+	delete(rs.readPending, key)
+	rs.readPendingMu.Unlock()
+}
+
+func (rs *RaftStorage) failPendingReads(err error) {
+	rs.readPendingMu.Lock()
+	pending := rs.readPending
+	rs.readPending = make(map[string]*pendingRead)
+	rs.readPendingMu.Unlock()
+	for _, request := range pending {
+		request.resultCh <- err
+	}
+}
+
+func (rs *RaftStorage) failReadsForLeaderChange(activeLeader uint64) {
+	var failed []*pendingRead
+	rs.readPendingMu.Lock()
+	for key, pending := range rs.readPending {
+		if pending.leaderID != 0 && pending.leaderID != activeLeader {
+			delete(rs.readPending, key)
+			failed = append(failed, pending)
+		}
+	}
+	rs.readPendingMu.Unlock()
+	for _, pending := range failed {
+		pending.resultCh <- errLeadershipLost
+	}
+}
+
 func (rs *RaftStorage) applyCommand(txn *badger.Txn, _ uint64, data []byte) error {
 	_, payload, err := decodeProposal(data)
 	if err != nil {
@@ -316,7 +460,21 @@ func (rs *RaftStorage) sendMessages(messages []*raftpb.Message) {
 	for _, message := range messages {
 		if err := rs.transport.Send(message); err != nil {
 			log.Printf("send raft message %s from %d to %d: %v", message.MsgType, message.From, message.To, err)
+			if message.MsgType == raftpb.MessageType_MsgReadIndex && message.From == rs.config.StoreID {
+				rs.failReadContext(message.Context, errLeadershipLost)
+			}
 		}
+	}
+}
+
+func (rs *RaftStorage) failReadContext(requestCtx []byte, err error) {
+	key := string(requestCtx)
+	rs.readPendingMu.Lock()
+	pending := rs.readPending[key]
+	delete(rs.readPending, key)
+	rs.readPendingMu.Unlock()
+	if pending != nil {
+		pending.resultCh <- err
 	}
 }
 

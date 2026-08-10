@@ -84,6 +84,8 @@ const (
 	MessageType_MsgTimeoutNow          MessageType = 12
 	MessageType_MsgPreVote             MessageType = 13
 	MessageType_MsgPreVoteResponse     MessageType = 14
+	MessageType_MsgReadIndex           MessageType = 15
+	MessageType_MsgReadIndexResponse   MessageType = 16
 )
 
 // Enum value maps for MessageType.
@@ -103,6 +105,8 @@ var (
 		12: "MsgTimeoutNow",
 		13: "MsgPreVote",
 		14: "MsgPreVoteResponse",
+		15: "MsgReadIndex",
+		16: "MsgReadIndexResponse",
 	}
 	MessageType_value = map[string]int32{
 		"MsgHup":                 0,
@@ -119,6 +123,8 @@ var (
 		"MsgTimeoutNow":          12,
 		"MsgPreVote":             13,
 		"MsgPreVoteResponse":     14,
+		"MsgReadIndex":           15,
+		"MsgReadIndexResponse":   16,
 	}
 )
 
@@ -387,6 +393,7 @@ type Message struct {
 	Commit        uint64                 `protobuf:"varint,8,opt,name=commit,proto3" json:"commit,omitempty"`
 	Snapshot      *Snapshot              `protobuf:"bytes,9,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
 	Reject        bool                   `protobuf:"varint,10,opt,name=reject,proto3" json:"reject,omitempty"`
+	Context       []byte                 `protobuf:"bytes,11,opt,name=context,proto3" json:"context,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -489,6 +496,13 @@ func (x *Message) GetReject() bool {
 		return x.Reject
 	}
 	return false
+}
+
+func (x *Message) GetContext() []byte {
+	if x != nil {
+		return x.Context
+	}
+	return nil
 }
 
 type HardState struct {
@@ -673,7 +687,7 @@ const file_raftpb_proto_rawDesc = "" +
 	"\x04term\x18\x03 \x01(\x04R\x04term\"T\n" +
 	"\bSnapshot\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data\x124\n" +
-	"\bmetadata\x18\x02 \x01(\v2\x18.raftpb.SnapshotMetadataR\bmetadata\"\xa9\x02\n" +
+	"\bmetadata\x18\x02 \x01(\v2\x18.raftpb.SnapshotMetadataR\bmetadata\"\xc3\x02\n" +
 	"\aMessage\x12.\n" +
 	"\bmsg_type\x18\x01 \x01(\x0e2\x13.raftpb.MessageTypeR\amsgType\x12\x0e\n" +
 	"\x02to\x18\x02 \x01(\x04R\x02to\x12\x12\n" +
@@ -685,7 +699,8 @@ const file_raftpb_proto_rawDesc = "" +
 	"\x06commit\x18\b \x01(\x04R\x06commit\x12,\n" +
 	"\bsnapshot\x18\t \x01(\v2\x10.raftpb.SnapshotR\bsnapshot\x12\x16\n" +
 	"\x06reject\x18\n" +
-	" \x01(\bR\x06reject\"K\n" +
+	" \x01(\bR\x06reject\x12\x18\n" +
+	"\acontext\x18\v \x01(\fR\acontext\"K\n" +
 	"\tHardState\x12\x12\n" +
 	"\x04term\x18\x01 \x01(\x04R\x04term\x12\x12\n" +
 	"\x04vote\x18\x02 \x01(\x04R\x04vote\x12\x16\n" +
@@ -700,7 +715,7 @@ const file_raftpb_proto_rawDesc = "" +
 	"\acontext\x18\x03 \x01(\fR\acontext*1\n" +
 	"\tEntryType\x12\x0f\n" +
 	"\vEntryNormal\x10\x00\x12\x13\n" +
-	"\x0fEntryConfChange\x10\x01*\x9b\x02\n" +
+	"\x0fEntryConfChange\x10\x01*\xc7\x02\n" +
 	"\vMessageType\x12\n" +
 	"\n" +
 	"\x06MsgHup\x10\x00\x12\v\n" +
@@ -718,7 +733,9 @@ const file_raftpb_proto_rawDesc = "" +
 	"\rMsgTimeoutNow\x10\f\x12\x0e\n" +
 	"\n" +
 	"MsgPreVote\x10\r\x12\x16\n" +
-	"\x12MsgPreVoteResponse\x10\x0e*-\n" +
+	"\x12MsgPreVoteResponse\x10\x0e\x12\x10\n" +
+	"\fMsgReadIndex\x10\x0f\x12\x18\n" +
+	"\x14MsgReadIndexResponse\x10\x10*-\n" +
 	"\x0eConfChangeType\x12\v\n" +
 	"\aAddNode\x10\x00\x12\x0e\n" +
 	"\n" +

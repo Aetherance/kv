@@ -106,7 +106,8 @@ func IsResponseMsg(msgt pb.MessageType) bool {
 	return msgt == pb.MessageType_MsgAppendResponse ||
 		msgt == pb.MessageType_MsgRequestVoteResponse ||
 		msgt == pb.MessageType_MsgHeartbeatResponse ||
-		msgt == pb.MessageType_MsgPreVoteResponse
+		msgt == pb.MessageType_MsgPreVoteResponse ||
+		msgt == pb.MessageType_MsgReadIndexResponse
 }
 
 func isHardStateEqual(a, b *pb.HardState) bool {

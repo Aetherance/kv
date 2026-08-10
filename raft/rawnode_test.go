@@ -36,6 +36,33 @@ func TestRawNodeStart2AC(t *testing.T) {
 	}
 }
 
+func TestRawNodeReadIndexReady(t *testing.T) {
+	storage := NewMemoryState()
+	rawNode, err := NewRawNode(newTestConfig(1, []uint64{1}, 10, 1, storage))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := rawNode.Campaign(); err != nil {
+		t.Fatal(err)
+	}
+	context := []byte("read-context")
+	if err := rawNode.ReadIndex(context); err != nil {
+		t.Fatal(err)
+	}
+	ready := rawNode.Ready()
+	if len(ready.ReadStates) != 1 {
+		t.Fatalf("read states = %d, want 1", len(ready.ReadStates))
+	}
+	if ready.ReadStates[0].Index != 1 || !reflect.DeepEqual(ready.ReadStates[0].RequestCtx, context) {
+		t.Fatalf("read state = %+v, want index 1 context %q", ready.ReadStates[0], context)
+	}
+	storage.Append(ready.Entries)
+	rawNode.Advance(&ready)
+	if rawNode.HasReady() {
+		t.Fatalf("ReadState was delivered more than once: %+v", rawNode.Ready())
+	}
+}
+
 func TestRawNodeRestart2AC(t *testing.T) {
 	entries := []*pb.Entry{
 		{Term: 1, Index: 1},

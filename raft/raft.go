@@ -149,6 +149,10 @@ type Raft struct {
 	// value.
 	// (Used in 3A conf change)
 	PendingConfIndex uint64
+
+	readOnly                 *readOnly
+	pendingReadIndexMessages []*pb.Message
+	readStates               []ReadState
 }
 
 // newRaft return a raft peer with the given config
@@ -189,6 +193,7 @@ func newRaft(c *Config) *Raft {
 		Lead:                  None,
 		votes:                 make(map[uint64]bool),
 		msgs:                  make([]*pb.Message, 0),
+		readOnly:              newReadOnly(),
 		heartbeatTimeout:      c.HeartbeatTick,
 		electionTimeout:       c.ElectionTick,
 		randomElectionTimeout: randElectionTimeout,
@@ -223,15 +228,26 @@ func (r *Raft) sendAppend(to uint64) bool {
 	return true
 }
 
-// sendHeartbeat sends a heartbeat RPC to the given peer.
-func (r *Raft) sendHeartbeat(to uint64) {
+// sendHeartbeat sends a heartbeat RPC to the given peer. context is non-empty
+// when the heartbeat is confirming leadership for a ReadIndex request.
+func (r *Raft) sendHeartbeat(to uint64, context []byte) {
+	commit := min(r.RaftLog.committed, r.Prs[to].Match)
 	r.msgs = append(r.msgs, &pb.Message{
 		From:    r.id,
 		To:      to,
 		Term:    r.Term,
 		MsgType: pb.MessageType_MsgHeartbeat,
-		Commit:  r.RaftLog.committed,
+		Commit:  commit,
+		Context: append([]byte(nil), context...),
 	})
+}
+
+func (r *Raft) bcastHeartbeat(context []byte) {
+	for id := range r.Prs {
+		if id != r.id {
+			r.sendHeartbeat(id, context)
+		}
+	}
 }
 
 // tick advances the internal logical clock by a single tick.
@@ -246,11 +262,7 @@ func (r *Raft) tick() {
 	case StateLeader:
 		r.heartbeatElapsed++
 		if r.heartbeatElapsed >= r.heartbeatTimeout {
-			for id := range r.Prs {
-				if id != r.id {
-					r.sendHeartbeat(id)
-				}
-			}
+			r.bcastHeartbeat(nil)
 		}
 	}
 }
@@ -301,6 +313,7 @@ func (r *Raft) becomeFollower(term uint64, lead uint64) {
 	r.Lead = lead
 	r.electionElapsed = 0
 	r.randomElectionTimeout = r.electionTimeout + rand.Intn(r.electionTimeout)
+	r.resetReadIndex()
 }
 
 // becomePreCandidate starts a non-persistent pre-election. In particular, it
@@ -312,6 +325,7 @@ func (r *Raft) becomePreCandidate() {
 	r.votes[r.id] = true
 	r.electionElapsed = 0
 	r.randomElectionTimeout = r.electionTimeout + rand.Intn(r.electionTimeout)
+	r.resetReadIndex()
 }
 
 // becomeCandidate transform this peer's state to candidate
@@ -323,6 +337,7 @@ func (r *Raft) becomeCandidate() {
 	r.votes[r.id] = true
 	r.electionElapsed = 0
 	r.randomElectionTimeout = r.electionTimeout + rand.Intn(r.electionTimeout)
+	r.resetReadIndex()
 }
 
 // becomeLeader transform this peer's state to leader
@@ -332,6 +347,7 @@ func (r *Raft) becomeLeader() {
 	r.State = StateLeader
 	r.Lead = r.id
 	r.heartbeatElapsed = 0
+	r.resetReadIndex()
 
 	lastIdx := r.RaftLog.LastIndex()
 	for id := range r.Prs {
@@ -372,11 +388,7 @@ func (r *Raft) Step(m *pb.Message) error {
 
 	if m.MsgType == pb.MessageType_MsgBeat {
 		if r.State == StateLeader {
-			for id := range r.Prs {
-				if id != r.id {
-					r.sendHeartbeat(id)
-				}
-			}
+			r.bcastHeartbeat(nil)
 		}
 		return nil
 	}
@@ -424,6 +436,10 @@ func (r *Raft) Step(m *pb.Message) error {
 			r.handleHeartbeat(m)
 		case pb.MessageType_MsgSnapshot:
 			r.handleSnapshot(m)
+		case pb.MessageType_MsgReadIndex:
+			r.handleReadIndex(m)
+		case pb.MessageType_MsgReadIndexResponse:
+			r.handleReadIndexResponse(m)
 		}
 
 	case StateCandidate:
@@ -466,6 +482,8 @@ func (r *Raft) Step(m *pb.Message) error {
 			r.handleHeartbeatResponse(m)
 		case pb.MessageType_MsgRequestVote:
 			r.handleRequestVote(m)
+		case pb.MessageType_MsgReadIndex:
+			r.handleReadIndex(m)
 		}
 	}
 	return nil
@@ -544,6 +562,9 @@ func (r *Raft) handleAppendEntries(m *pb.Message) {
 func (r *Raft) handleHeartbeat(m *pb.Message) {
 	r.Lead = m.From
 	r.electionElapsed = 0
+	if m.Commit > r.RaftLog.committed {
+		r.RaftLog.committed = min(m.Commit, r.RaftLog.LastIndex())
+	}
 
 	r.msgs = append(r.msgs,
 		&pb.Message{
@@ -551,6 +572,7 @@ func (r *Raft) handleHeartbeat(m *pb.Message) {
 			To:      m.From,
 			Term:    r.Term,
 			MsgType: pb.MessageType_MsgHeartbeatResponse,
+			Context: append([]byte(nil), m.Context...),
 		})
 }
 
@@ -673,6 +695,7 @@ func (r *Raft) handleAppendResponse(m *pb.Message) {
 	}
 
 	if r.maybeCommit() {
+		r.releasePendingReadIndex()
 		for id := range r.Prs {
 			if id != r.id {
 				r.sendAppend(id)
@@ -702,9 +725,118 @@ func (r *Raft) maybeCommit() bool {
 }
 
 func (r *Raft) handleHeartbeatResponse(m *pb.Message) {
+	if len(m.Context) > 0 && r.readOnly.recvAck(m.From, m.Context) > len(r.Prs)/2 {
+		r.completeReadIndex(r.readOnly.advance(m.Context))
+	}
 	if r.Prs[m.From].Match < r.RaftLog.LastIndex() {
 		r.sendAppend(m.From)
 	}
+}
+
+func (r *Raft) handleReadIndex(m *pb.Message) {
+	if len(m.Context) == 0 {
+		return
+	}
+	if r.State != StateLeader {
+		if r.Lead == None {
+			return
+		}
+		r.msgs = append(r.msgs, &pb.Message{
+			MsgType: pb.MessageType_MsgReadIndex,
+			From:    r.id,
+			To:      r.Lead,
+			Term:    r.Term,
+			Context: append([]byte(nil), m.Context...),
+		})
+		return
+	}
+	if r.Prs[m.From] == nil {
+		return
+	}
+
+	request := &pb.Message{
+		MsgType: pb.MessageType_MsgReadIndex,
+		From:    m.From,
+		To:      r.id,
+		Term:    r.Term,
+		Context: append([]byte(nil), m.Context...),
+	}
+	if !r.committedEntryInCurrentTerm() {
+		r.pendingReadIndexMessages = append(r.pendingReadIndexMessages, request)
+		return
+	}
+	r.startReadIndex([]*pb.Message{request})
+}
+
+func (r *Raft) handleReadIndexResponse(m *pb.Message) {
+	if m.From != r.Lead || len(m.Context) == 0 {
+		return
+	}
+	r.readStates = append(r.readStates, ReadState{
+		Index:      m.Index,
+		RequestCtx: append([]byte(nil), m.Context...),
+	})
+}
+
+func (r *Raft) committedEntryInCurrentTerm() bool {
+	term, err := r.RaftLog.Term(r.RaftLog.committed)
+	return err == nil && term == r.Term
+}
+
+func (r *Raft) releasePendingReadIndex() {
+	if !r.committedEntryInCurrentTerm() || len(r.pendingReadIndexMessages) == 0 {
+		return
+	}
+	pending := r.pendingReadIndexMessages
+	r.pendingReadIndexMessages = nil
+	r.startReadIndex(pending)
+}
+
+func (r *Raft) startReadIndex(requests []*pb.Message) {
+	var latest []byte
+	for _, request := range requests {
+		if r.readOnly.addRequest(r.RaftLog.committed, request, r.id) {
+			latest = request.Context
+		}
+	}
+	if len(latest) == 0 {
+		return
+	}
+	if len(r.Prs) == 1 {
+		r.completeReadIndex(r.readOnly.advance(latest))
+		return
+	}
+	r.bcastHeartbeat(latest)
+}
+
+func (r *Raft) completeReadIndex(completed []*readIndexStatus) {
+	for _, status := range completed {
+		if status.request.From == r.id {
+			r.readStates = append(r.readStates, ReadState{
+				Index:      status.index,
+				RequestCtx: append([]byte(nil), status.request.Context...),
+			})
+			continue
+		}
+		r.msgs = append(r.msgs, &pb.Message{
+			MsgType: pb.MessageType_MsgReadIndexResponse,
+			From:    r.id,
+			To:      status.request.From,
+			Term:    r.Term,
+			Index:   status.index,
+			Context: append([]byte(nil), status.request.Context...),
+		})
+	}
+}
+
+func (r *Raft) resetReadIndex() {
+	if r.readOnly == nil {
+		r.readOnly = newReadOnly()
+	} else {
+		r.readOnly.reset()
+	}
+	r.pendingReadIndexMessages = nil
+	r.readStates = nil
 }
 
 // handleSnapshot handle Snapshot RPC request

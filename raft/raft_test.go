@@ -75,6 +75,7 @@ func readyEqual(a, b Ready) bool {
 		entsEqual(a.Entries, b.Entries) &&
 		entsEqual(a.CommittedEntries, b.CommittedEntries) &&
 		msgsEqual(a.Messages, b.Messages) &&
+		reflect.DeepEqual(a.ReadStates, b.ReadStates) &&
 		proto.Equal(a.Snapshot, b.Snapshot)
 }
 

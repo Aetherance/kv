@@ -8,6 +8,8 @@ import (
 
 	"github.com/Aetherance/kv/engine/config"
 	"github.com/Aetherance/kv/engine/storage"
+	"github.com/Aetherance/kv/proto/pkg/raft_cmdpb"
+	"github.com/Aetherance/kv/raft"
 )
 
 func TestSingleNodeWriteReadAndRestart(t *testing.T) {
@@ -30,7 +32,11 @@ func TestSingleNodeWriteReadAndRestart(t *testing.T) {
 	}}}); err != nil {
 		t.Fatalf("write: %v", err)
 	}
+	lastIndexBeforeRead := first.state.lastIndex
 	assertStoredValue(t, first, "value")
+	if first.state.lastIndex != lastIndexBeforeRead {
+		t.Fatalf("read grew raft log from %d to %d", lastIndexBeforeRead, first.state.lastIndex)
+	}
 	if first.state.snapshot.Metadata.Index == 0 {
 		t.Fatal("expected low compaction threshold to create a snapshot")
 	}
@@ -88,6 +94,12 @@ func TestRejectedProposalDoesNotStopEventLoop(t *testing.T) {
 	if pending != 0 {
 		t.Fatalf("rejected proposal left %d pending requests", pending)
 	}
+
+	if _, err := store.Reader(context.Background()); err == nil {
+		t.Fatal("reader without a known leader succeeded")
+	} else if !errors.As(err, &notLeader) {
+		t.Fatalf("reader error = %v, want NotLeaderError", err)
+	}
 }
 
 func TestProposalWaitHonorsContext(t *testing.T) {
@@ -134,6 +146,122 @@ func TestProposalWaitHonorsContext(t *testing.T) {
 	store.pendingMu.Unlock()
 	if pending != 0 {
 		t.Fatalf("canceled proposal left %d pending requests", pending)
+	}
+}
+
+func TestReadIndexWaitHonorsContext(t *testing.T) {
+	store := &RaftStorage{
+		config:      &config.Config{StoreID: 1},
+		inbox:       make(chan raftEvent),
+		done:        make(chan struct{}),
+		readPending: make(map[string]*pendingRead),
+	}
+
+	accepted := make(chan struct{})
+	go func() {
+		event := <-store.inbox
+		event.done <- nil
+		close(accepted)
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, err := store.Reader(ctx)
+		result <- err
+	}()
+
+	select {
+	case <-accepted:
+	case <-time.After(time.Second):
+		t.Fatal("read-index request was not accepted")
+	}
+	cancel()
+
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("reader error = %v, want context.Canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("reader did not return after cancellation")
+	}
+
+	store.readPendingMu.Lock()
+	pending := len(store.readPending)
+	store.readPendingMu.Unlock()
+	if pending != 0 {
+		t.Fatalf("canceled read left %d pending requests", pending)
+	}
+}
+
+func TestReadIndexWaitsForLocalApply(t *testing.T) {
+	context := []byte("read-context")
+	resultCh := make(chan error, 1)
+	store := &RaftStorage{
+		state: &raftStatePersistence{appliedIndex: 4},
+		readPending: map[string]*pendingRead{
+			string(context): {resultCh: resultCh, leaderID: 2},
+		},
+	}
+
+	store.onReadState(raft.ReadState{Index: 5, RequestCtx: context})
+	select {
+	case err := <-resultCh:
+		t.Fatalf("read completed before local apply: %v", err)
+	default:
+	}
+
+	store.state.appliedIndex = 5
+	store.completeAppliedReads()
+	select {
+	case err := <-resultCh:
+		if err != nil {
+			t.Fatalf("completed read error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("read did not complete after local apply")
+	}
+}
+
+func TestReadIndexFailsWhenLeaderChanges(t *testing.T) {
+	resultCh := make(chan error, 1)
+	store := &RaftStorage{
+		readPending: map[string]*pendingRead{
+			"request": {resultCh: resultCh, leaderID: 2},
+		},
+	}
+	store.failReadsForLeaderChange(3)
+	select {
+	case err := <-resultCh:
+		if !errors.Is(err, errLeadershipLost) {
+			t.Fatalf("read error = %v, want leadership lost", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("leader change did not fail pending read")
+	}
+}
+
+func TestLegacyReadBarrierRemainsReplayable(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.StoreID = 1
+	cfg.Peers = map[uint64]string{1: "127.0.0.1:1"}
+	cfg.DBPath = t.TempDir()
+	store := NewRaftStorage(cfg)
+	if err := store.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.Stop(); err != nil {
+			t.Errorf("stop: %v", err)
+		}
+	})
+
+	err := store.propose(context.Background(), &raft_cmdpb.RaftCmdRequest{
+		Requests: []*raft_cmdpb.Request{{CmdType: raft_cmdpb.CmdType_ReadBarrier}},
+	})
+	if err != nil {
+		t.Fatalf("apply legacy ReadBarrier: %v", err)
 	}
 }
 
