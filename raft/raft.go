@@ -154,13 +154,8 @@ type Raft struct {
 	// (Used in 3A leader transfer)
 	leadTransferee uint64
 
-	// Only one conf change may be pending (in the log, but not yet
-	// applied) at a time. This is enforced via PendingConfIndex, which
-	// is set to a value >= the log index of the latest pending
-	// configuration change (if any). Config changes are only allowed to
-	// be proposed if the leader's applied index is greater than this
-	// value.
-	// (Used in 3A conf change)
+	// TODO: enforce one pending configuration change at a time when dynamic
+	// membership support is implemented.
 	PendingConfIndex uint64
 
 	readOnly                 *readOnly
@@ -987,12 +982,12 @@ func (r *Raft) sendSnapshot(to uint64) {
 	r.Prs[to].Next = snapshot.Metadata.Index + 1
 }
 
-// addNode add a new node to raft group
+// TODO: implement dynamic membership before exposing AddNode to callers.
+// addNode adds a new node to the raft group.
 func (r *Raft) addNode(id uint64) {
-	// Your Code Here (3A).
 }
 
-// removeNode remove a node from raft group
+// TODO: implement dynamic membership before exposing RemoveNode to callers.
+// removeNode removes a node from the raft group.
 func (r *Raft) removeNode(id uint64) {
-	// Your Code Here (3A).
 }

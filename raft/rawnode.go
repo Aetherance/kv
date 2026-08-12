@@ -122,6 +122,8 @@ func (rn *RawNode) ReadIndex(requestCtx []byte) error {
 	})
 }
 
+// TODO: configuration changes are not supported until Raft membership updates
+// and dynamic peer transport management are implemented.
 // ProposeConfChange proposes a config change.
 func (rn *RawNode) ProposeConfChange(cc *pb.ConfChange) error {
 	data, err := proto.Marshal(cc)
@@ -135,6 +137,8 @@ func (rn *RawNode) ProposeConfChange(cc *pb.ConfChange) error {
 	})
 }
 
+// TODO: configuration changes are not supported until Raft membership updates
+// and dynamic peer transport management are implemented.
 // ApplyConfChange applies a config change to the local node.
 func (rn *RawNode) ApplyConfChange(cc *pb.ConfChange) *pb.ConfState {
 	if cc.NodeId == None {
