@@ -13,6 +13,7 @@ KKV is a distributed key-value store written in Go. It uses Raft log replication
 - `Get`, `Put`, `Delete`, and `Scan` operations
 - Logical keyspace isolation through the `cf` parameter
 - gRPC server and `kvctl` command-line client
+- Mutual TLS encryption and authentication
 
 ## Quick start
 
@@ -91,13 +92,35 @@ go run ./cmd/kv -store-id 3 -data-dir /tmp/kkv-3 \
 
 After election, send write requests to the leader. A write sent to a follower returns a `not leader; leader=<id>` error; use the ID-to-address mapping in `-peers` to connect to that leader. Read requests can be sent to any replica: a follower obtains a ReadIndex from the leader, waits until its local state has applied that index, and then serves the read locally with linearizable consistency.
 
+## Mutual TLS
+
+Plaintext gRPC remains the default. Once certificate options are supplied, KKV uses mutual TLS to encrypt and authenticate both client traffic and Raft traffic. Configure every node with a certificate, key, and trusted CA:
+
+```bash
+go run ./cmd/kv -store-id 1 -data-dir /tmp/kkv-1 \
+  -peers '1=127.0.0.1:20161' \
+  -tls-cert certs/node1.pem \
+  -tls-key certs/node1-key.pem \
+  -tls-ca certs/ca.pem
+
+go run ./cmd/kvctl -a 127.0.0.1:20161 \
+  -tls-ca certs/ca.pem \
+  -tls-cert certs/client.pem \
+  -tls-key certs/client-key.pem \
+  get default greeting
+```
+
+The KV and Raft services share one gRPC port, so mutual TLS applies to both peer nodes and external clients. Each node certificate must be valid for both server and client authentication, and its DNS/IP SAN must match the corresponding address in `-peers`. `kvctl` must provide a client certificate and key; it also supports `-tls-server-name` when the dial address differs from the server certificate name.
+
+TLS requires version 1.2 or later and protects data in transit; it does not encrypt the Badger data directory at rest. All nodes in a cluster must use a compatible transport mode.
+
 ## Command reference
 
 ```text
-kvctl -a <server-address> get <cf> <key>
-kvctl -a <server-address> put <cf> <key> <value>
-kvctl -a <server-address> del <cf> <key>
-kvctl -a <server-address> scan [-limit N] <cf> <start-key>
+kvctl -a <server-address> [mTLS flags] get <cf> <key>
+kvctl -a <server-address> [mTLS flags] put <cf> <key> <value>
+kvctl -a <server-address> [mTLS flags] del <cf> <key>
+kvctl -a <server-address> [mTLS flags] scan [-limit N] <cf> <start-key>
 ```
 
 ## Project layout
@@ -109,6 +132,7 @@ engine/storage/      Storage abstraction, Badger, and Raft backends
 proto/proto/         gRPC and Raft message definitions
 proto/pkg/           Generated Protobuf Go code
 raft/                Raft protocol implementation
+security/            Shared TLS configuration and certificate validation
 server/              KV gRPC service implementation
 integration/         End-to-end integration tests
 ```

@@ -13,6 +13,7 @@ KKV 是一个基于 Go 实现的分布式键值存储。它使用 Raft 复制日
 - 支持 `Get`、`Put`、`Delete`、`Scan` 操作
 - 通过 `cf` 参数隔离逻辑键空间
 - 提供 gRPC 服务端与命令行客户端 `kvctl`
+- 支持 mTLS 加密与双向身份认证
 
 ## 快速开始
 
@@ -91,13 +92,35 @@ go run ./cmd/kv -store-id 3 -data-dir /tmp/kkv-3 \
 
 选举完成后，写请求发送到 Leader 节点。向 Follower 发送写请求会返回 `not leader; leader=<id>` 错误；根据 `-peers` 中的 ID—地址映射连接对应 Leader。读请求可发送到任意副本：Follower 会向 Leader 获取 ReadIndex，等待本地状态机应用至该索引后，再以线性一致性从本地返回数据。
 
+## mTLS
+
+默认仍使用明文 gRPC。一旦提供证书参数，KKV 就会使用 mTLS 加密并双向认证客户端流量和 Raft 节点间流量。所有节点均需配置证书、私钥和可信 CA：
+
+```bash
+go run ./cmd/kv -store-id 1 -data-dir /tmp/kkv-1 \
+  -peers '1=127.0.0.1:20161' \
+  -tls-cert certs/node1.pem \
+  -tls-key certs/node1-key.pem \
+  -tls-ca certs/ca.pem
+
+go run ./cmd/kvctl -a 127.0.0.1:20161 \
+  -tls-ca certs/ca.pem \
+  -tls-cert certs/client.pem \
+  -tls-key certs/client-key.pem \
+  get default greeting
+```
+
+KV 与 Raft 服务共用同一个 gRPC 端口，因此 mTLS 会同时校验 Raft 节点与外部客户端。各节点证书必须同时允许服务端认证和客户端认证，证书中的 DNS/IP SAN 也必须匹配 `-peers` 里的对应地址。`kvctl` 必须通过 `-tls-cert` 和 `-tls-key` 提供客户端证书；当连接地址与服务端证书名称不一致时，可通过 `-tls-server-name` 指定待校验的名称。
+
+TLS 最低版本为 1.2，只保护传输中的数据，不会加密 Badger 数据目录中的静态数据。同一集群的所有节点必须使用兼容的传输模式。
+
 ## 命令行参考
 
 ```text
-kvctl -a <server-address> get <cf> <key>
-kvctl -a <server-address> put <cf> <key> <value>
-kvctl -a <server-address> del <cf> <key>
-kvctl -a <server-address> scan [-limit N] <cf> <start-key>
+kvctl -a <server-address> [mTLS 参数] get <cf> <key>
+kvctl -a <server-address> [mTLS 参数] put <cf> <key> <value>
+kvctl -a <server-address> [mTLS 参数] del <cf> <key>
+kvctl -a <server-address> [mTLS 参数] scan [-limit N] <cf> <start-key>
 ```
 
 ## 项目结构
@@ -109,6 +132,7 @@ engine/storage/      存储抽象、Badger 与 Raft 存储实现
 proto/proto/         gRPC 与 Raft 消息定义
 proto/pkg/           生成的 Protobuf Go 代码
 raft/                Raft 协议实现
+security/            TLS 配置与证书校验
 server/              KV gRPC 服务实现
 integration/         端到端集成测试
 ```

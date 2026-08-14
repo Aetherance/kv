@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"crypto/tls"
+	"time"
+)
 
 // Config holds the fixed-node adapter and Raft runtime configuration.
 type Config struct {
@@ -11,6 +14,10 @@ type Config struct {
 	// topology is fixed and shared by all nodes.
 	StoreID uint64
 	Peers   map[uint64]string
+
+	// RaftTLSConfig secures outbound Raft gRPC connections. A nil value keeps
+	// the transport in plaintext mode. Treat the configured value as immutable.
+	RaftTLSConfig *tls.Config
 
 	// Raft protocol timing and log retention.
 	RaftElectionTimeoutTicks int

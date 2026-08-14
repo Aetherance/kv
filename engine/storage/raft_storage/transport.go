@@ -2,10 +2,12 @@ package raft_storage
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"sync"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/Aetherance/kv/engine/config"
@@ -21,8 +23,12 @@ type raftConn struct {
 	client   *grpc.ClientConn
 }
 
-func newRaftConn(addr string) (*raftConn, error) {
-	cc, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func newRaftConn(addr string, tlsConfig *tls.Config) (*raftConn, error) {
+	var transportCredentials credentials.TransportCredentials = insecure.NewCredentials()
+	if tlsConfig != nil {
+		transportCredentials = credentials.NewTLS(tlsConfig.Clone())
+	}
+	cc, err := grpc.NewClient(addr, grpc.WithTransportCredentials(transportCredentials))
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +102,7 @@ func (t *ServerTransport) getConn(storeID uint64, addr string) (*raftConn, error
 	if ok {
 		return conn, nil
 	}
-	newConn, err := newRaftConn(addr)
+	newConn, err := newRaftConn(addr, t.cfg.RaftTLSConfig)
 	if err != nil {
 		return nil, err
 	}
